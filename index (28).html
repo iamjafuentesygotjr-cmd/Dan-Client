@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prospect Desk · Cross Core OPC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#161310; --ink-2:#221E18; --ink-3:#2E2820;
+  --paper:#F8F6F0; --card:#FFFFFF; --line:#E8E2D4; --line-soft:#F0EBDF;
+  --gold:#F2B90D; --gold-deep:#DE9200; --gold-soft:#FBF3DA;
+  --muted:#8B8374; --body:#3D3830;
+  --green:#1F8A5B; --green-soft:#E4F3EC;
+  --blue:#2563EB; --blue-soft:#E8EEFC;
+  --amber:#C97E00; --amber-soft:#FCF0D8;
+  --red:#C2410C; --red-soft:#FBEAE1;
+  --gray:#857D6F; --gray-soft:#EFECE4;
+  --danger:#B3261E;
+  --r:14px; --r-sm:9px;
+  --shadow:0 1px 2px rgba(22,19,16,.05),0 8px 28px -12px rgba(22,19,16,.14);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--paper);color:var(--body);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3,.display{font-family:'Archivo',sans-serif;color:var(--ink)}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:13.5px;color:var(--ink)}
+a{color:inherit}
+::selection{background:var(--gold);color:var(--ink)}
+
+/* ---------- login ---------- */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+  background:linear-gradient(140deg,#161310 0%,#221B0E 55%,#3A2A08 100%);position:relative;overflow:hidden}
+.login-wrap::after{content:"";position:absolute;inset:auto -20% -55% -20%;height:70%;
+  background:radial-gradient(ellipse at center,rgba(242,185,13,.22),transparent 65%)}
+.login-card{position:relative;z-index:1;width:100%;max-width:430px;background:var(--card);border-radius:20px;
+  box-shadow:0 30px 80px -20px rgba(0,0,0,.55);overflow:hidden}
+.login-band{height:6px;background:linear-gradient(90deg,var(--gold-deep),var(--gold) 60%,#FFD75E)}
+.login-inner{padding:36px 36px 30px}
+.brand-row{display:flex;align-items:center;gap:11px;margin-bottom:26px}
+.brand-mark{width:38px;height:38px;border-radius:10px;background:var(--ink);display:flex;align-items:center;justify-content:center;flex:none}
+.brand-mark svg{display:block}
+.brand-name{font-family:'Archivo';font-weight:800;font-size:15px;letter-spacing:.14em;color:var(--ink)}
+.brand-sub{font-size:10.5px;letter-spacing:.22em;color:var(--muted);font-weight:600}
+.login-inner h1{font-size:23px;font-weight:700;letter-spacing:-.01em;margin-bottom:6px}
+.login-inner .lede{color:var(--muted);font-size:13.5px;margin-bottom:24px}
+.role-grid{display:grid;gap:9px;margin-bottom:18px}
+.role-opt{display:flex;align-items:center;gap:12px;padding:13px 14px;border:1.5px solid var(--line);border-radius:12px;background:#fff;text-align:left;transition:.15s}
+.role-opt:hover{border-color:#CFC7B2}
+.role-opt.sel{border-color:var(--gold-deep);background:var(--gold-soft)}
+.role-dot{width:9px;height:9px;border-radius:50%;background:var(--line);flex:none;transition:.15s}
+.role-opt.sel .role-dot{background:var(--gold-deep)}
+.role-opt b{display:block;font-size:13.5px;color:var(--ink)}
+.role-opt span{font-size:12px;color:var(--muted)}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.field input,.field select,.field textarea{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;background:#fff;outline:none;transition:.15s}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--gold-deep);box-shadow:0 0 0 3px rgba(222,146,0,.15)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:none;border-radius:10px;padding:11px 18px;font-weight:600;font-size:13.5px;transition:.15s}
+.btn-gold{background:var(--gold);color:var(--ink);width:100%}
+.btn-gold:hover{background:#E8AF06}
+.btn-dark{background:var(--ink);color:#fff}
+.btn-dark:hover{background:var(--ink-3)}
+.btn-ghost{background:transparent;border:1.5px solid var(--line);color:var(--ink)}
+.btn-ghost:hover{border-color:#CFC7B2}
+.btn-danger{background:var(--red-soft);color:var(--danger)}
+.btn-sm{padding:7px 12px;font-size:12.5px;border-radius:8px}
+.login-err{color:var(--danger);font-size:12.5px;margin:-6px 0 12px;display:none}
+.login-note{margin-top:18px;padding:11px 13px;background:var(--paper);border:1px solid var(--line-soft);border-radius:10px;font-size:12px;color:var(--muted)}
+.login-note code{background:#fff;border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:11px;color:var(--ink)}
+
+/* ---------- shell ---------- */
+.shell{display:none;min-height:100vh}
+.shell.on{display:flex}
+.side{width:232px;flex:none;background:var(--ink);color:#B7AFA0;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.side-brand{display:flex;align-items:center;gap:10px;padding:22px 20px 18px;border-bottom:1px solid rgba(255,255,255,.07)}
+.side-brand .brand-name{color:#fff;font-size:13px}
+.side-brand .brand-sub{color:#8F8776}
+.nav{padding:14px 12px;display:flex;flex-direction:column;gap:2px;flex:1;overflow-y:auto}
+.nav-label{font-size:10px;font-weight:700;letter-spacing:.2em;color:#6E675A;padding:14px 10px 6px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;background:transparent;border:none;color:#B7AFA0;font-size:13px;font-weight:500;text-align:left;width:100%;position:relative;transition:.13s}
+.nav-item:hover{background:rgba(255,255,255,.06);color:#fff}
+.nav-item.on{background:rgba(242,185,13,.13);color:var(--gold)}
+.nav-item.on::before{content:"";position:absolute;left:-12px;top:7px;bottom:7px;width:3px;border-radius:0 3px 3px 0;background:var(--gold)}
+.nav-item .cnt{margin-left:auto;font-size:11px;color:#7C7466;font-variant-numeric:tabular-nums}
+.nav-item.on .cnt{color:var(--gold-deep)}
+.side-foot{padding:14px 16px;border-top:1px solid rgba(255,255,255,.07);font-size:12px}
+.side-user{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--gold);color:var(--ink);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex:none}
+.side-user b{color:#fff;display:block;font-size:12.5px}
+.side-user span{color:#8F8776;font-size:11px}
+.signout{background:none;border:none;color:#8F8776;font-size:12px;padding:0;text-decoration:underline}
+.signout:hover{color:#fff}
+
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{height:5px;background:linear-gradient(90deg,var(--gold-deep),var(--gold) 55%,#FFD75E)}
+.page{padding:30px 38px 60px;max-width:1160px;width:100%;margin:0 auto}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:24px;flex-wrap:wrap}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--gold-deep);margin-bottom:6px}
+.page-head h1{font-size:26px;font-weight:700;letter-spacing:-.015em}
+.page-head .sub{color:var(--muted);font-size:13px;margin-top:4px}
+.head-actions{display:flex;gap:9px;flex-wrap:wrap}
+
+/* ---------- cards & kpis ---------- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:22px}
+.kpi{padding:16px 18px}
+.kpi .k-label{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.kpi .k-val{font-family:'Archivo';font-size:28px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;margin-top:4px}
+.kpi .k-note{font-size:11.5px;color:var(--muted);margin-top:2px}
+
+.list-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.lc{padding:20px 20px 18px;display:flex;flex-direction:column;gap:14px;cursor:pointer;transition:.15s}
+.lc:hover{border-color:#D8CFBB;transform:translateY(-1px)}
+.lc-top{display:flex;gap:14px;align-items:center}
+.ring{flex:none}
+.lc-title b{font-family:'Archivo';font-size:15.5px;color:var(--ink);display:block;letter-spacing:-.01em}
+.lc-title span{font-size:12px;color:var(--muted)}
+.lc-week{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:5px}
+.bar{height:6px;border-radius:4px;background:var(--gray-soft);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--gold-deep),var(--gold))}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.pill{font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px}
+
+/* status colors */
+.st-NOT_CONNECTED{background:var(--gray-soft);color:var(--gray)}
+.st-REQUEST_SENT{background:var(--amber-soft);color:var(--amber)}
+.st-CONNECTED{background:var(--green-soft);color:var(--green)}
+.st-RESPONDED{background:var(--blue-soft);color:var(--blue)}
+.st-FOLLOW_UP{background:var(--red-soft);color:var(--red)}
+
+/* ---------- table ---------- */
+.toolbar{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.toolbar input[type=text],.toolbar input[type=date],.toolbar select{padding:8.5px 11px;border:1.5px solid var(--line);border-radius:9px;background:#fff;outline:none}
+.toolbar input[type=text]{min-width:220px}
+.toolbar input:focus,.toolbar select:focus{border-color:var(--gold-deep)}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);text-align:left;padding:11px 14px;border-bottom:1px solid var(--line);white-space:nowrap;background:#FCFAF5}
+td{padding:11px 14px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#FCFAF4}
+td .p-name{font-weight:600;color:var(--ink)}
+td .p-pos{font-size:11.5px;color:var(--muted);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+.link-btn{font-size:12px;color:var(--gold-deep);font-weight:600;text-decoration:none;border-bottom:1px solid transparent}
+.link-btn:hover{border-color:var(--gold-deep)}
+.st-select{border:1.5px solid transparent;border-radius:20px;font-size:11.5px;font-weight:600;padding:4px 8px;appearance:none;-webkit-appearance:none;outline:none;cursor:pointer}
+.row-actions{display:flex;gap:4px;justify-content:flex-end}
+.icon-btn{width:28px;height:28px;border-radius:7px;border:1px solid var(--line);background:#fff;display:inline-flex;align-items:center;justify-content:center;color:var(--muted);transition:.12s}
+.icon-btn:hover{color:var(--ink);border-color:#CFC7B2}
+.icon-btn.danger:hover{color:var(--danger);border-color:var(--danger)}
+.empty{padding:44px;text-align:center;color:var(--muted)}
+.empty b{display:block;color:var(--ink);font-family:'Archivo';font-size:15px;margin-bottom:4px}
+.count-note{font-size:12px;color:var(--muted);margin:10px 2px 0}
+.badge-arch{font-size:10.5px;font-weight:600;color:var(--muted);background:var(--gray-soft);border-radius:4px;padding:2px 6px;margin-left:6px}
+
+/* target strip on list page */
+.target-strip{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.ts-card{flex:1;min-width:200px;padding:15px 18px;display:flex;align-items:center;gap:14px}
+.ts-card .t-num{font-family:'Archivo';font-size:22px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+.ts-card .t-lab{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.ts-card .t-sub{font-size:11.5px;color:var(--muted)}
+
+/* ---------- modal ---------- */
+.overlay{position:fixed;inset:0;background:rgba(22,19,16,.5);display:none;align-items:flex-start;justify-content:center;padding:40px 20px;z-index:50;overflow-y:auto}
+.overlay.on{display:flex}
+.modal{background:#fff;border-radius:16px;width:100%;max-width:520px;box-shadow:0 30px 80px -20px rgba(0,0,0,.4);overflow:hidden}
+.modal-head{padding:20px 24px 0;display:flex;justify-content:space-between;align-items:center}
+.modal-head h2{font-size:17px;font-weight:700}
+.modal-body{padding:18px 24px 24px}
+.modal .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+.modal-foot{display:flex;justify-content:flex-end;gap:9px;padding:0 24px 22px}
+.close-x{background:none;border:none;font-size:20px;color:var(--muted);line-height:1}
+.form-err{color:var(--danger);font-size:12.5px;margin-bottom:12px;display:none}
+
+/* ---------- activity ---------- */
+.act-row td:first-child{white-space:nowrap;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.act-chip{font-size:10.5px;font-weight:700;letter-spacing:.06em;padding:2.5px 8px;border-radius:5px;text-transform:uppercase}
+.ac-add{background:var(--green-soft);color:var(--green)}
+.ac-status{background:var(--blue-soft);color:var(--blue)}
+.ac-edit{background:var(--amber-soft);color:var(--amber)}
+.ac-archive,.ac-delete{background:var(--gray-soft);color:var(--gray)}
+.ac-list,.ac-access,.ac-import{background:var(--gold-soft);color:var(--gold-deep)}
+
+/* ---------- integration ---------- */
+.int-status{display:flex;align-items:center;gap:14px;padding:20px 22px;margin-bottom:16px}
+.int-dot{width:11px;height:11px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 5px rgba(242,185,13,.18);flex:none}
+.int-status b{font-family:'Archivo';font-size:15px;color:var(--ink);display:block}
+.int-status span{font-size:12.5px;color:var(--muted)}
+.int-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.int-card{padding:20px 22px}
+.int-card h3{font-size:14px;margin-bottom:8px}
+.int-card p{font-size:12.8px;color:var(--body);margin-bottom:10px}
+.int-card ul{margin:0 0 12px 17px;font-size:12.8px;color:var(--body)}
+.int-card li{margin-bottom:5px}
+.tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:5px;margin-bottom:10px}
+.tag-ok{background:var(--green-soft);color:var(--green)}
+.tag-wait{background:var(--gray-soft);color:var(--gray)}
+.note-box{margin-top:16px;padding:14px 16px;background:var(--gold-soft);border:1px solid #EED9A0;border-radius:10px;font-size:12.5px;color:#6B5205}
+
+/* toast */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:99;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast b{color:var(--gold)}
+
+/* section titles */
+.sec-title{font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:26px 0 12px}
+
+@media (max-width:900px){
+  .shell.on{flex-direction:column}
+  .side{width:100%;height:auto;position:static;flex-direction:row;align-items:center;flex-wrap:wrap}
+  .nav{flex-direction:row;flex-wrap:wrap;padding:8px}
+  .nav-label{display:none}
+  .nav-item.on::before{display:none}
+  .side-foot{border-top:none;margin-left:auto}
+  .page{padding:20px 16px 60px}
+  .int-grid{grid-template-columns:1fr}
+  .modal .grid2{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+:focus-visible{outline:2px solid var(--gold-deep);outline-offset:2px}
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div class="login-wrap" id="loginView">
+  <div class="login-card">
+    <div class="login-band"></div>
+    <div class="login-inner">
+      <div class="brand-row">
+        <div class="brand-mark">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 1.5L12.2 7.8L18.5 10L12.2 12.2L10 18.5L7.8 12.2L1.5 10L7.8 7.8L10 1.5Z" fill="#F2B90D"/></svg>
+        </div>
+        <div>
+          <div class="brand-name">CROSS CORE OPC</div>
+          <div class="brand-sub">PROSPECT DESK</div>
+        </div>
+      </div>
+      <h1>Choose your portal</h1>
+      <p class="lede">One click to enter — no password needed.</p>
+      <div class="role-grid">
+        <button class="role-opt" data-portal="team" type="button" style="padding:18px 16px">
+          <span class="role-dot" style="background:var(--gold-deep)"></span>
+          <div><b style="font-size:15px">CrossCore VA</b><span>Full workspace — add prospects, update statuses, manage lists</span></div>
+        </button>
+        <button class="role-opt" data-portal="client" type="button" style="padding:18px 16px">
+          <span class="role-dot" style="background:var(--ink)"></span>
+          <div><b style="font-size:15px">Client Portal</b><span>View-only monitoring for Dan — dashboards, lists, live progress</span></div>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ APP SHELL ============ -->
+<div class="shell" id="appShell">
+  <aside class="side">
+    <div class="side-brand">
+      <div class="brand-mark"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M10 1.5L12.2 7.8L18.5 10L12.2 12.2L10 18.5L7.8 12.2L1.5 10L7.8 7.8L10 1.5Z" fill="#F2B90D"/></svg></div>
+      <div><div class="brand-name">CROSS CORE</div><div class="brand-sub">PROSPECT DESK</div></div>
+    </div>
+    <nav class="nav" id="sideNav"></nav>
+    <div class="side-foot">
+      <div class="side-user"><div class="avatar" id="userAvatar">A</div><div><b id="userName">—</b><span id="userRole">—</span></div></div>
+      <button class="signout" id="signOut">Switch portal</button>
+    </div>
+  </aside>
+  <div class="main">
+    <div class="topbar"></div>
+    <div class="page" id="pageRoot"></div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay"><div class="modal" id="modalBox"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= DATA ================= */
+const RAW_SEED = [{"l":"community","n":"C\u00e9sar Azpilicueta","p":"Professional Footballer | MBA | Building the Bridge Between Elite Sport, Business & Long-Term Athlete Success","c":"","u":"https://www.linkedin.com/in/cesar-azpilicueta/","s":"REQUEST_SENT","d":"2026-06-01"},{"l":"community","n":"Mark Richardson, CPA","p":"CPA for Athletes | Former NCAA Student-Athlete","c":"","u":"https://www.linkedin.com/in/markrichardson3/","s":"REQUEST_SENT","d":"2026-06-01"},{"l":"community","n":"Austin Moss II","p":"Vice President of Player Development & Team Dynamics at San Francisco 49ers","c":"","u":"https://www.linkedin.com/in/austinmossii/","s":"REQUEST_SENT","d":"2026-06-01"},{"l":"community","n":"Jarrett Chirico, DCA","p":"","c":"","u":"https://www.linkedin.com/in/jarrett-chirico-dca-b7712649/","s":"REQUEST_SENT","d":"2026-06-01"},{"l":"community","n":"Joseph M. Milazzo, PGA, TPI3 \u00b7 2","p":"Director of Instruction at Manor Country Club","c":"","u":"https://www.linkedin.com/in/joseph-m-milazzo-pga-tpi3-2a0492355/","s":"REQUEST_SENT","d":"2026-06-02"},{"l":"community","n":"Meredith Geiger-Walton","p":"Racquet Sports Director @ Austin Country Club | RSPA, DCA, RPO","c":"","u":"https://www.linkedin.com/in/meredith1026/","s":"REQUEST_SENT","d":"2026-06-02"},{"l":"community","n":"Dave Senio","p":"Lead Football Coach (Development Centre)","c":"","u":"https://www.linkedin.com/in/dave-senior-8143a7273/","s":"REQUEST_SENT","d":"2026-06-02"},{"l":"community","n":"Dalton Mansfield","p":"Academy Coach","c":"","u":"https://www.linkedin.com/in/dalton-sidney-mansfield/","s":"REQUEST_SENT","d":"2026-06-02"},{"l":"community","n":"Colin Cramer","p":"Mentor|Coach|Recent Masters Graduate at Northeastern","c":"","u":"https://www.linkedin.com/in/colin-cramer-255387198/","s":"REQUEST_SENT","d":"2026-06-03"},{"l":"community","n":"Patrick Aviles","p":"VP, Brand at Los Angeles Football Club (LAFC)","c":"","u":"https://www.linkedin.com/in/lafcpat/","s":"REQUEST_SENT","d":"2026-06-03"},{"l":"community","n":"Kristi Roehm","p":"Founder, 8 Degrees | Brand Architect to Visionary Athletes in the NFL, NBA & MLB","c":"","u":"https://www.linkedin.com/in/kristiroehm/","s":"REQUEST_SENT","d":"2026-06-04"},{"l":"community","n":"eleana fanaika","p":"Executive Director, Every Kid Sports","c":"","u":"https://www.linkedin.com/in/eleana-fanaika/","s":"REQUEST_SENT","d":"2026-06-04"},{"l":"community","n":"Allain Roy","p":"President at RSG Hockey and NRX Hockey LLC","c":"","u":"https://www.linkedin.com/in/allain-roy-83256615/","s":"REQUEST_SENT","d":"2026-06-04"},{"l":"community","n":"Adrijana Roy","p":"COO at RSG Hockey, LLC","c":"","u":"https://www.linkedin.com/in/adrijana-roy-68296620a/","s":"REQUEST_SENT","d":"2026-06-04"},{"l":"community","n":"Chris Dent","p":"Specialist & Founder of Chris Dent ProCricket Academy","c":"","u":"https://www.linkedin.com/in/chris-dent-cricket/","s":"REQUEST_SENT","d":"2026-06-05"},{"l":"community","n":"James Marvel","p":"Founder","c":"","u":"https://www.linkedin.com/in/james-marvel-54673a35a/","s":"REQUEST_SENT","d":"2026-06-05"},{"l":"community","n":"Add to HubSpot","p":"Vice President, Player Engagement, New York Giants | Believe In U Youth Foundation","c":"","u":"https://www.linkedin.com/in/usamayoung/","s":"REQUEST_SENT","d":"2026-06-05"},{"l":"community","n":"Ihsan Ahmed","p":"UCFB Football Coaching","c":"","u":"https://www.linkedin.com/in/ihsan-ahmed198/","s":"REQUEST_SENT","d":"2026-06-05"},{"l":"community","n":"Patrick Lopez","p":"Associate Head Coach Men\u2019s Soccer","c":"","u":"https://www.linkedin.com/in/patrick-lopez-19b922138/","s":"REQUEST_SENT","d":"2026-06-06"},{"l":"community","n":"Peter McDonnell","p":"UEFA A | EFCL | Coach Mentoring, Player & Club Development | Philadelphia Union \u00b7 Minnesota United FC Academies","c":"","u":"https://www.linkedin.com/in/peterjmcdonnell1/","s":"REQUEST_SENT","d":"2026-06-06"},{"l":"community","n":"Jon Scheer","p":"Sporting Director at Philadelphia Union","c":"","u":"https://www.linkedin.com/in/jon-scheer-a1499129/","s":"REQUEST_SENT","d":"2026-06-06"},{"l":"community","n":"James Barnes","p":"U12 Head Coach & Union Juniors Director","c":"","u":"https://www.linkedin.com/in/james-barnes-3b45aa13a/","s":"REQUEST_SENT","d":"2026-06-07"},{"l":"community","n":"Juan Santamaria","p":"VP & Sporting Director at Cedar Stars Academy| Head Coach & Sporting Director at CSA Rush","c":"","u":"https://www.linkedin.com/in/juan-santamaria-53860722b/","s":"REQUEST_SENT","d":"2026-06-07"},{"l":"community","n":"George Altirs","p":"President and CEO at Capelli New York - Co-Founder & CEO at Capelli Sport","c":"","u":"https://www.linkedin.com/in/georgealtirs/","s":"REQUEST_SENT","d":"2026-06-07"},{"l":"community","n":"Jason Arnold","p":"Executive Vice President, Global Sporting Business at Capelli Sport","c":"","u":"https://www.linkedin.com/in/jason-arnold-soccer/","s":"REQUEST_SENT","d":"2026-06-07"},{"l":"community","n":"Anthony Nixon","p":"Cedar Stars Academy VP & Executive Director | TAG Soccer Director","c":"","u":"https://www.linkedin.com/in/anthony-nixon-b69bb4110/","s":"REQUEST_SENT","d":"2026-06-08"},{"l":"community","n":"Michael Custidiano","p":"Zone 1 Youth Director - Cedar Stars Academy","c":"","u":"https://www.linkedin.com/in/michael-custidiano-847ba994/","s":"REQUEST_SENT","d":"2026-06-08"},{"l":"community","n":"Kieran Patrick","p":"Director of Operations - Cedar Stars Academy","c":"","u":"https://www.linkedin.com/in/kieran-patrick-4661a278/","s":"REQUEST_SENT","d":"2026-06-08"},{"l":"community","n":"Phil Wheddon","p":"Director of Goalkeeping & 1st Team Goalkeeper Coach, Former US National Teams GK Coach","c":"","u":"https://www.linkedin.com/in/phil-wheddon-a5666913/","s":"REQUEST_SENT","d":"2026-06-09"},{"l":"community","n":"Ryan Richter","p":"Head Coach Union 2 at Philadelphia Union","c":"","u":"https://www.linkedin.com/in/ryan-richter-753b24178/","s":"REQUEST_SENT","d":"2026-06-09"},{"l":"community","n":"Paul Killian","p":"Academy Director | Philadelphia Union","c":"","u":"https://www.linkedin.com/in/paul-killian-441a3232/","s":"REQUEST_SENT","d":"2026-06-09"},{"l":"community","n":"Gary Curneen","p":"Director of Football | Tactical Analysis | Coach Development | Founder of Modern Soccer Coach","c":"","u":"https://www.linkedin.com/in/gary-curneen-1a623423b/","s":"REQUEST_SENT","d":"2026-06-09"},{"l":"community","n":"Matt Pilkington","p":"NYCFC II Head Coach at New York City Football Club (NYCFC)","c":"","u":"https://www.linkedin.com/in/matt-pilkington-555103164/","s":"REQUEST_SENT","d":"2026-06-10"},{"l":"community","n":"Nick Dye","p":"Sporting Director","c":"","u":"https://www.linkedin.com/in/nick-dye-09a285a1/","s":"REQUEST_SENT","d":"2026-06-10"},{"l":"community","n":"Joe Davis","p":"Football Coach - AFC B Diploma","c":"","u":"https://www.linkedin.com/in/joedavis409/","s":"REQUEST_SENT","d":"2026-06-10"},{"l":"community","n":"Michael Carter-Williams","p":"2014 NBA Rookie of the Year","c":"","u":"https://www.linkedin.com/in/michael-carter-williams/","s":"REQUEST_SENT","d":"2026-06-10"},{"l":"community","n":"Julian Aiken","p":"Founder & CEO","c":"","u":"https://www.linkedin.com/in/jaiken-6785-gd/","s":"REQUEST_SENT","d":"2026-06-11"},{"l":"community","n":"Jennifer Cairns","p":"Owner/Director at Soccer Shots Madison LLC","c":"","u":"https://www.linkedin.com/in/jennifer-cairns-wisco/","s":"REQUEST_SENT","d":"2026-06-11"},{"l":"community","n":"Rock W.","p":"Founder @ Relinq\u2122 & ValorX Sports","c":"","u":"https://www.linkedin.com/in/rock-ward/","s":"REQUEST_SENT","d":"2026-06-11"},{"l":"community","n":"Sarah Lieberman","p":"Director of Programs at Soccer Shots","c":"","u":"https://www.linkedin.com/in/sarah-lieberman-0bab301b0/","s":"REQUEST_SENT","d":"2026-06-12"},{"l":"community","n":"Benno Nagel","p":"Sports entrepreneur, executive and owner. Multi venture founder. Community builder. I love building \ud83c\uddfa\ud83c\uddf8\u26bd\ufe0f","c":"","u":"https://www.linkedin.com/in/benno-nagel-78073b122/","s":"REQUEST_SENT","d":"2026-06-12"},{"l":"community","n":"Francisco \"Panchito\" J. Ramirez Rueda","p":"Founder | Mentor | Executive | Community Builder |","c":"","u":"https://www.linkedin.com/in/francisco-panchito-j-ramirez-rueda-3a888a13a/","s":"REQUEST_SENT","d":"2026-06-12"},{"l":"community","n":"John Smelzer","p":"Founder & President, AV ALTA FC","c":"","u":"https://www.linkedin.com/in/johnsmelzer/","s":"REQUEST_SENT","d":"2026-06-12"},{"l":"community","n":"Parker Graham","p":"Founder & CEO of Vestible","c":"","u":"https://www.linkedin.com/in/parkercmgraham/","s":"REQUEST_SENT","d":"2026-06-13"},{"l":"community","n":"luiggi coppo","p":"Soccer Coach at Soccer Shots","c":"","u":"https://www.linkedin.com/in/luiggi-coppo-1a769412a/","s":"REQUEST_SENT","d":"2026-06-13"},{"l":"community","n":"Erin Ervin Smith","p":"Owner and Executive DirectorSoccer Shots The Woodlands SpringSoccer Shots NW Arkansas","c":"","u":"https://www.linkedin.com/in/erinervinsmith/","s":"REQUEST_SENT","d":"2026-06-14"},{"l":"community","n":"Clare McSweeney","p":"CEO & Founder","c":"","u":"https://www.linkedin.com/in/clare-mcsweeney-864a2240/","s":"REQUEST_SENT","d":"2026-06-14"},{"l":"community","n":"Darius Willis","p":"Founder & CEO","c":"","u":"https://www.linkedin.com/in/darius-willis/","s":"REQUEST_SENT","d":"2026-06-14"},{"l":"community","n":"Chris Munford","p":"CEO/President at California Sports Institute, Inc.","c":"","u":"https://www.linkedin.com/in/chrismunford/","s":"REQUEST_SENT","d":"2026-06-15"},{"l":"community","n":"Darcy Steen","p":"Owner / General Manager","c":"","u":"https://www.linkedin.com/in/darcysteen/","s":"REQUEST_SENT","d":"2026-06-15"},{"l":"community","n":"Bryan Deasley","p":"Director of Hockey and Sports Development","c":"","u":"https://www.linkedin.com/in/bryan-deasley-90708641/","s":"REQUEST_SENT","d":"2026-06-15"},{"l":"community","n":"Wade Kelly","p":"CEO & Performance Director,","c":"","u":"https://www.linkedin.com/in/wade-kelly-37466629/","s":"REQUEST_SENT","d":"2026-06-15"},{"l":"community","n":"Charlotte Offord","p":"GM Australia & New Zealand","c":"","u":"https://www.linkedin.com/in/charlotte-offord-00204b36/","s":"REQUEST_SENT","d":"2026-06-16"},{"l":"community","n":"Mike Davis","p":"Building the Future of Youth Sports & Community Connection in the Home of Baseball","c":"","u":"https://www.linkedin.com/in/mike-davis-04891447/","s":"REQUEST_SENT","d":"2026-06-16"},{"l":"community","n":"Dominick Borgia","p":"Founder","c":"","u":"https://www.linkedin.com/in/dominickborgia/","s":"REQUEST_SENT","d":"2026-06-16"},{"l":"community","n":"Beth Vietmeier","p":"Founder & CEO | Sports, Entertainment","c":"","u":"https://www.linkedin.com/in/bethanyvietmeier/","s":"REQUEST_SENT","d":"2026-06-17"},{"l":"community","n":"Mac (Lawrence) Lavier","p":"President & CEO at gearUP Sports","c":"","u":"https://www.linkedin.com/in/mac-lavier-553bb55/","s":"REQUEST_SENT","d":"2026-06-17"},{"l":"community","n":"Earl Post","p":"Assistant Head Football Coach","c":"","u":"https://www.linkedin.com/in/earl-post-818405176/","s":"REQUEST_SENT","d":"2026-06-17"},{"l":"community","n":"Ted Pajakowski","p":"Assistant Head Football Coach","c":"","u":"https://www.linkedin.com/in/ted-pajakowski-46366591/","s":"REQUEST_SENT","d":"2026-06-17"},{"l":"community","n":"Carrie Crigler","p":"COO + Co-Founder at Optikka | Sports Tech | IP","c":"","u":"https://www.linkedin.com/in/carriecrigler/","s":"NOT_CONNECTED","d":"2026-06-18"},{"l":"community","n":"Jim Freeman","p":"Owner/Operator","c":"","u":"https://www.linkedin.com/in/jim-freeman-8213b422/","s":"REQUEST_SENT","d":"2026-06-18"},{"l":"community","n":"Ryan Greene","p":"Director, Athlete + Artist Partnerships at PSA","c":"","u":"https://www.linkedin.com/in/ryan-greene-a8b0a364/","s":"REQUEST_SENT","d":"2026-06-18"},{"l":"community","n":"Tate Kelly","p":"Senior Vice President, Partnerships at United Soccer League (USL)","c":"","u":"https://www.linkedin.com/in/tatemkelly/","s":"NOT_CONNECTED","d":"2026-06-18"},{"l":"community","n":"Betsy Haugh","p":"Vice President, Gainbridge Super League | Sports Executive","c":"","u":"https://www.linkedin.com/in/betsyhaugh/","s":"REQUEST_SENT","d":"2026-06-19"},{"l":"community","n":"Paul McDonough","p":"President and Chief Soccer Officer at United Soccer League (USL)","c":"","u":"https://www.linkedin.com/in/paul-mcdonough-a671b547/","s":"REQUEST_SENT","d":"2026-06-19"},{"l":"community","n":"Jeremy Alumbaugh","p":"President, USL Championship at United Soccer League (USL)","c":"","u":"https://www.linkedin.com/in/jeremy-alumbaugh/","s":"REQUEST_SENT","d":"2026-06-19"},{"l":"community","n":"Lee O'Neill","p":"President USL League One","c":"","u":"https://www.linkedin.com/in/lee-o-neill-7aa24869/","s":"REQUEST_SENT","d":"2026-06-20"},{"l":"community","n":"Oliver Wyss","p":"Chairman & Chief Soccer Officer","c":"","u":"https://www.linkedin.com/in/oliver-wyss-ba855a75/","s":"REQUEST_SENT","d":"2026-06-20"},{"l":"community","n":"Peter Nugent","p":"President of Soccer Operations & General Manager at Orange County Soccer Club","c":"","u":"https://www.linkedin.com/in/peter-nugent-49014a53/","s":"REQUEST_SENT","d":"2026-06-20"},{"l":"community","n":"Gianleonardo Neglia","p":"Sporting Director: Las Vegas Lights FC","c":"","u":"https://www.linkedin.com/in/gianleonardo-neglia/","s":"REQUEST_SENT","d":"2026-06-20"},{"l":"community","n":"Devin Rensing","p":"Head Soccer Coach at Las Vegas Lights FC","c":"","u":"https://www.linkedin.com/in/devin-rensing-21153123/","s":"REQUEST_SENT","d":"2026-06-21"},{"l":"community","n":"Brendan Burke","p":"Head Coach and General Manager at Hartford Athletic","c":"","u":"https://www.linkedin.com/in/brendan-burke-6319ba126/","s":"REQUEST_SENT","d":"2026-06-21"},{"l":"community","n":"Bobby Murphy","p":"Head Coach and Sporting Director Portland Hearts of Pine","c":"","u":"https://www.linkedin.com/in/bobby-murphy-3b7a2b192/","s":"REQUEST_SENT","d":"2026-06-21"},{"l":"community","n":"Matthew Poland","p":"Head Coach and Sporting Director of FC Naples","c":"","u":"https://www.linkedin.com/in/matthew-poland-9a7749172/","s":"REQUEST_SENT","d":"2026-06-21"},{"l":"community","n":"Steven Bell","p":"VP, Club Performance Group at United Soccer League (USL)","c":"","u":"https://www.linkedin.com/in/stevenbell3/","s":"REQUEST_SENT","d":"2026-06-22"},{"l":"community","n":"Ricky Ferroni","p":"Founder @Parksie App | Founder @Ferroni Hockey Founder @prophAic | Partner @Vend Group","c":"","u":"https://www.linkedin.com/in/ricky-ferroni-0576a41a9/","s":"REQUEST_SENT","d":"2026-06-22"},{"l":"community","n":"Larenzo G.","p":"Assistant Athletic Director for Academic Services","c":"","u":"https://www.linkedin.com/in/larenzo/","s":"REQUEST_SENT","d":"2026-06-22"},{"l":"community","n":"Matt Tiano, MBA","p":"Founder & CEO | Twin Cities Soccer Leagues | Youth Sports Innovator & Leader","c":"","u":"https://www.linkedin.com/in/matttiano/","s":"REQUEST_SENT","d":"2026-06-23"},{"l":"community","n":"Atanas Karagyaurov","p":"Associate Head Men\u2019s Soccer Coach at MidAmerica Nazarene University","c":"","u":"https://www.linkedin.com/in/atanas-karagyaurov-7b73b8a6/","s":"REQUEST_SENT","d":"2026-06-23"},{"l":"community","n":"Shawn Beyer","p":"HC Soka University I OCSC Head Academy Scout","c":"","u":"https://www.linkedin.com/in/shawn-beyer-8a283730/","s":"REQUEST_SENT","d":"2026-06-23"},{"l":"community","n":"Monty Hawkins","p":"Owner, Tualatin Indoor Soccer","c":"","u":"https://www.linkedin.com/in/monty-hawkins-8a02a05/","s":"REQUEST_SENT","d":"2026-06-23"},{"l":"community","n":"Vianka Ceballos","p":"Girls Head Coach for Sherwood High School | Head Coach at WSM | Co-owner of SZV Training","c":"","u":"https://www.linkedin.com/in/vianka-ceballos-992893253/","s":"REQUEST_SENT","d":"2026-06-24"},{"l":"community","n":"Dusko Mitrovic","p":"18 Years of coaching experience USSF B License Candidate","c":"","u":"https://www.linkedin.com/in/dusko-mitrovic-869529229/","s":"REQUEST_SENT","d":"2026-06-24"},{"l":"community","n":"Evan Dabby","p":"CEO at NJ Youth Soccer","c":"","u":"https://www.linkedin.com/in/evan-dabby-1369a9/","s":"REQUEST_SENT","d":"2026-06-24"},{"l":"community","n":"Angela (Hucles) Mangano","p":"Building the ownership economy for women in sport | 2X Olympic Gold Medalist | CSO & President of Soccer Operations, Houston Dash | TEDx Speaker","c":"","u":"https://www.linkedin.com/in/angelahucles/","s":"REQUEST_SENT","d":"2026-06-25"},{"l":"community","n":"Ever Morataya","p":"US Soccer Scout at U.S. Soccer Federation","c":"","u":"https://www.linkedin.com/in/ever-morataya-50461a40/","s":"REQUEST_SENT","d":"2026-06-25"},{"l":"community","n":"Michael Erush M.Ed","p":"CSLA Men\u2019s Head Soccer Coach | Program Head Boys Soccer | Academic College Advisor | Player Mentorship | Technical Director","c":"","u":"https://www.linkedin.com/in/michaelerush/","s":"REQUEST_SENT","d":"2026-06-26"},{"l":"community","n":"Nik Penn","p":"Director of Club Development, educator and coach developer at Rush Soccer, husband, dad and Philanthropy fanatic","c":"","u":"https://www.linkedin.com/in/nik-penn-84291240/","s":"REQUEST_SENT","d":"2026-06-26"},{"l":"community","n":"Gabby Del Hierro","p":"Manager, Sporting Strategy at U.S. Soccer Federation","c":"","u":"https://www.linkedin.com/in/gdelhierro/","s":"REQUEST_SENT","d":"2026-06-26"},{"l":"community","n":"Michael Merino","p":"Technical Director and Football Coach at Asphalt Green Soccer Club","c":"","u":"https://www.linkedin.com/in/michael-merino-0a0713101/","s":"REQUEST_SENT","d":"2026-06-26"},{"l":"community","n":"Jason Rocha","p":"Head Coach - Jefferson Men's Soccer","c":"","u":"https://www.linkedin.com/in/jasonmrocha/","s":"REQUEST_SENT","d":"2026-06-27"},{"l":"community","n":"Abdulrahman Bangura","p":"Executive Director at Kids-Soccer-Academy. Head Coach at Soccer In The Streets. Coach at Kids N' kicks Soccer","c":"","u":"https://www.linkedin.com/in/abdulrahman-bangura-b2a77929/","s":"REQUEST_SENT","d":"2026-06-27"},{"l":"community","n":"Nicholas Moffitt","p":"","c":"","u":"https://www.linkedin.com/in/nicholas-moffitt-887660157/","s":"REQUEST_SENT","d":"2026-06-27"},{"l":"community","n":"Jeff Schrock","p":"","c":"","u":"https://www.linkedin.com/in/jschrock/","s":"REQUEST_SENT","d":"2026-06-28"},{"l":"community","n":"Austin Josiah","p":"","c":"","u":"https://www.linkedin.com/in/austin-j-josiah/","s":"REQUEST_SENT","d":"2026-06-28"},{"l":"community","n":"Andrew Brown","p":"","c":"","u":"https://www.linkedin.com/in/andrewcbrown1/","s":"REQUEST_SENT","d":"2026-06-28"},{"l":"community","n":"Salim M.","p":"","c":"","u":"https://www.linkedin.com/in/salimmitha/","s":"REQUEST_SENT","d":"2026-06-28"},{"l":"community","n":"Max McCormick","p":"","c":"","u":"https://www.linkedin.com/in/maxvmccormick/","s":"REQUEST_SENT","d":"2026-06-29"},{"l":"community","n":"Brad Gaffke","p":"","c":"","u":"https://www.linkedin.com/in/brad-gaffke-5a7b2111/","s":"REQUEST_SENT","d":"2026-06-29"},{"l":"community","n":"Jeff D.","p":"","c":"","u":"https://www.linkedin.com/in/jeffdelaveaga/","s":"REQUEST_SENT","d":"2026-06-29"},{"l":"community","n":"Allan Kaplan","p":"","c":"","u":"https://www.linkedin.com/in/allankaplan/","s":"REQUEST_SENT","d":"2026-06-29"},{"l":"community","n":"Bobby Brannigan","p":"","c":"","u":"https://www.linkedin.com/in/bbrannigan/","s":"REQUEST_SENT","d":"2026-06-30"},{"l":"community","n":"Ronnie Steward","p":"","c":"","u":"https://www.linkedin.com/in/ronnie-steward-a730b6405/","s":"REQUEST_SENT","d":"2026-06-30"},{"l":"community","n":"Christian Firescu","p":"","c":"","u":"https://www.linkedin.com/in/christian-firescu-4258b2351/","s":"REQUEST_SENT","d":"2026-06-30"},{"l":"community","n":"Andre Kovensky","p":"","c":"","u":"https://www.linkedin.com/in/andre-kovensky-79811a/","s":"REQUEST_SENT","d":"2026-07-01"},{"l":"community","n":"Irwin Rodrigues","p":"","c":"","u":"https://www.linkedin.com/in/irwinr/","s":"REQUEST_SENT","d":"2026-07-01"},{"l":"community","n":"John Casset","p":"","c":"","u":"https://www.linkedin.com/in/john-casset-55874278/","s":"REQUEST_SENT","d":"2026-07-01"},{"l":"community","n":"John Hennessey","p":"","c":"","u":"https://www.linkedin.com/in/wonkguy/","s":"NOT_CONNECTED","d":"2026-07-01"},{"l":"community","n":"Simon Selitsky","p":"","c":"","u":"https://www.linkedin.com/in/simon-selitsky-265128/","s":"NOT_CONNECTED","d":"2026-07-02"},{"l":"community","n":"Stuart Feffer","p":"","c":"","u":"https://www.linkedin.com/in/sfeffer/","s":"NOT_CONNECTED","d":"2026-07-02"},{"l":"community","n":"Keith Kreuer","p":"","c":"","u":"https://www.linkedin.com/in/kkreuer/","s":"NOT_CONNECTED","d":"2026-07-02"},{"l":"community","n":"kris sliger","p":"","c":"","u":"https://www.linkedin.com/in/kris-m-sliger/","s":"NOT_CONNECTED","d":"2026-07-03"},{"l":"community","n":"Michael Zielinski","p":"","c":"","u":"https://www.linkedin.com/in/worldengine/","s":"NOT_CONNECTED","d":"2026-07-03"},{"l":"investor","n":"Angelo J. Rossi","p":"","c":"","u":"https://www.linkedin.com/in/angelojrossi3/","s":"REQUEST_SENT","d":"2026-06-01"},{"l":"investor","n":"Alejandro Bedoya","p":"","c":"","u":"https://www.linkedin.com/in/alejandro-bedoya-9a8b87ab/","s":"REQUEST_SENT","d":"2026-06-01"},{"l":"investor","n":"Sebastian Lletget","p":"","c":"","u":"https://www.linkedin.com/in/sebastianlletget/","s":"REQUEST_SENT","d":"2026-06-01"},{"l":"investor","n":"Maarten Paes","p":"","c":"","u":"https://www.linkedin.com/in/maartenpaes/","s":"REQUEST_SENT","d":"2026-06-01"},{"l":"investor","n":"Brendan Harris","p":"","c":"","u":"https://www.linkedin.com/in/brendanmharris/","s":"REQUEST_SENT","d":"2026-06-02"},{"l":"investor","n":"Ben Grossman","p":"","c":"","u":"https://www.linkedin.com/in/ben-grossman-8ba805/","s":"REQUEST_SENT","d":"2026-06-02"},{"l":"investor","n":"Angela Allen","p":"","c":"","u":"https://www.linkedin.com/in/angelahillsallen/","s":"REQUEST_SENT","d":"2026-06-02"},{"l":"investor","n":"Angelique Medley","p":"","c":"","u":"https://www.linkedin.com/in/angelique-medley-7732397/","s":"REQUEST_SENT","d":"2026-06-03"},{"l":"investor","n":"Angie Carrillo","p":"","c":"","u":"https://www.linkedin.com/in/iangie/","s":"REQUEST_SENT","d":"2026-06-03"},{"l":"investor","n":"Anthony DiBello","p":"","c":"","u":"https://www.linkedin.com/in/anthony-dibello-16bbb2181/","s":"REQUEST_SENT","d":"2026-06-04"},{"l":"investor","n":"Kelly deMarrais","p":"","c":"","u":"https://www.linkedin.com/in/kellyjane22/","s":"REQUEST_SENT","d":"2026-06-04"},{"l":"investor","n":"Brian Kabot","p":"","c":"","u":"https://www.linkedin.com/in/brian-kabot-07936a22/","s":"REQUEST_SENT","d":"2026-06-04"},{"l":"investor","n":"Brian Zwerner","p":"","c":"","u":"https://www.linkedin.com/in/brian-zwerner/","s":"REQUEST_SENT","d":"2026-06-05"},{"l":"investor","n":"Deepen Parikh","p":"","c":"","u":"https://www.linkedin.com/in/deepenparikh/","s":"REQUEST_SENT","d":"2026-06-05"},{"l":"investor","n":"Greg Bettinelli","p":"","c":"","u":"https://www.linkedin.com/in/gregbettinelli/","s":"REQUEST_SENT","d":"2026-06-05"},{"l":"investor","n":"Marc Wilson","p":"","c":"","u":"https://www.linkedin.com/in/wilsonmarc/","s":"REQUEST_SENT","d":"2026-06-05"},{"l":"investor","n":"Ethan Ehrenberg","p":"","c":"","u":"https://www.linkedin.com/in/ethan-ehrenberg-96371b18b/","s":"REQUEST_SENT","d":"2026-06-06"},{"l":"investor","n":"Nakisa Bidarian","p":"","c":"","u":"https://www.linkedin.com/in/nakisa-bidarian-8849432/","s":"REQUEST_SENT","d":"2026-06-06"},{"l":"investor","n":"Geoff Woo","p":"","c":"","u":"https://www.linkedin.com/in/gwoo/","s":"REQUEST_SENT","d":"2026-06-06"},{"l":"investor","n":"Nishant Jain","p":"","c":"","u":"https://www.linkedin.com/in/nishantjain2017/","s":"REQUEST_SENT","d":"2026-06-07"},{"l":"investor","n":"Holden Markoff","p":"","c":"","u":"https://www.linkedin.com/in/holden-markoff-335201143/","s":"REQUEST_SENT","d":"2026-06-07"},{"l":"investor","n":"Roger Ehrenberg","p":"","c":"","u":"https://www.linkedin.com/in/rehrenberg/","s":"REQUEST_SENT","d":"2026-06-07"},{"l":"investor","n":"Emmanuel Seug\u00e9","p":"","c":"","u":"https://www.linkedin.com/in/emmanuel-seug%C3%A9-7197285/","s":"REQUEST_SENT","d":"2026-06-08"},{"l":"investor","n":"Tyler Granelli","p":"","c":"","u":"https://www.linkedin.com/in/tyler-granelli-46b672109/","s":"REQUEST_SENT","d":"2026-06-08"},{"l":"investor","n":"Nick Wilson","p":"","c":"","u":"https://www.linkedin.com/in/nick-wilson-b860a4a/","s":"REQUEST_SENT","d":"2026-06-08"},{"l":"investor","n":"Rob Ryan","p":"","c":"","u":"https://www.linkedin.com/in/rob-ryan-691025b/","s":"REQUEST_SENT","d":"2026-06-09"},{"l":"investor","n":"Maximilian Gollner","p":"","c":"","u":"https://www.linkedin.com/in/maximilian-gollner-b1555b10a/","s":"REQUEST_SENT","d":"2026-06-09"},{"l":"investor","n":"Scott Parkin, CPA, CFA","p":"","c":"","u":"https://www.linkedin.com/in/scott-parkin-cpa-cfa-4389a763/","s":"REQUEST_SENT","d":"2026-06-09"},{"l":"investor","n":"Zac Goldberg","p":"","c":"","u":"https://www.linkedin.com/in/zacgoldberg/","s":"REQUEST_SENT","d":"2026-06-10"},{"l":"investor","n":"Jeffrey Kamys","p":"","c":"","u":"https://www.linkedin.com/in/jeffrey-kamys/","s":"REQUEST_SENT","d":"2026-06-10"},{"l":"investor","n":"Zack Goldman","p":"","c":"","u":"https://www.linkedin.com/in/zack-goldman-59859231/","s":"REQUEST_SENT","d":"2026-06-10"},{"l":"investor","n":"Kerin Hempel","p":"","c":"","u":"https://www.linkedin.com/in/kerin-hempel/","s":"REQUEST_SENT","d":"2026-06-10"},{"l":"investor","n":"Anthony Bates","p":"","c":"","u":"https://www.linkedin.com/in/anthonybates/","s":"REQUEST_SENT","d":"2026-06-11"},{"l":"investor","n":"Grayson Allen","p":"","c":"","u":"https://www.linkedin.com/in/graysonjallen/","s":"REQUEST_SENT","d":"2026-06-11"},{"l":"investor","n":"Juanjo Marquez","p":"","c":"","u":"https://www.linkedin.com/in/juanjo-marquez-354b0139/","s":"REQUEST_SENT","d":"2026-06-11"},{"l":"investor","n":"Hassan Pinto","p":"","c":"","u":"https://www.linkedin.com/in/hassanpinto/","s":"REQUEST_SENT","d":"2026-06-12"},{"l":"investor","n":"Ian Doody","p":"","c":"","u":"https://www.linkedin.com/in/idoody/","s":"REQUEST_SENT","d":"2026-06-12"},{"l":"investor","n":"Thomas Preiss","p":"","c":"","u":"https://www.linkedin.com/in/preissthomas/","s":"REQUEST_SENT","d":"2026-06-12"},{"l":"investor","n":"Arjun Metre","p":"","c":"","u":"https://www.linkedin.com/in/arjunmetre/","s":"REQUEST_SENT","d":"2026-06-13"},{"l":"investor","n":"Ronnie Swinkels","p":"","c":"","u":"https://www.linkedin.com/in/ronnie-swinkels-a7b7581/","s":"REQUEST_SENT","d":"2026-06-13"},{"l":"investor","n":"Chip Austin","p":"","c":"","u":"https://www.linkedin.com/in/chipaustin/","s":"REQUEST_SENT","d":"2026-06-13"},{"l":"investor","n":"Eric Herd","p":"","c":"","u":"https://www.linkedin.com/in/ericherd/","s":"REQUEST_SENT","d":"2026-06-14"},{"l":"investor","n":"Jeffrey Dawson","p":"","c":"","u":"https://www.linkedin.com/in/jeffrey-dawson-7319b29b/","s":"REQUEST_SENT","d":"2026-06-14"},{"l":"investor","n":"Ben Johnson","p":"","c":"","u":"https://www.linkedin.com/in/benjaminjohnson80/","s":"REQUEST_SENT","d":"2026-06-14"},{"l":"investor","n":"Damon Cross","p":"","c":"","u":"https://www.linkedin.com/in/damon-cross-65378159/","s":"REQUEST_SENT","d":"2026-06-15"},{"l":"investor","n":"Robert Deffenbaugh","p":"","c":"","u":"https://www.linkedin.com/in/robertdeffenbaugh/","s":"REQUEST_SENT","d":"2026-06-15"},{"l":"investor","n":"Benjamin Gumpert","p":"","c":"","u":"https://www.linkedin.com/in/benjamin-gumpert-11a438/","s":"REQUEST_SENT","d":"2026-06-15"},{"l":"investor","n":"Mauricio Sammet","p":"","c":"","u":"https://www.linkedin.com/in/mauriciosammet/","s":"REQUEST_SENT","d":"2026-06-15"},{"l":"investor","n":"Quentin Decr\u00e9","p":"","c":"","u":"https://www.linkedin.com/in/quentindecre/","s":"REQUEST_SENT","d":"2026-06-16"},{"l":"investor","n":"Joe Roberts","p":"","c":"","u":"https://www.linkedin.com/in/joerobertsjr/","s":"REQUEST_SENT","d":"2026-06-16"},{"l":"investor","n":"Joseph Roberts, CLU, ChFC","p":"","c":"","u":"https://www.linkedin.com/in/joseph-roberts-clu-chfc-7a13b62b/","s":"REQUEST_SENT","d":"2026-06-16"},{"l":"investor","n":"Angelica Willis","p":"","c":"","u":"https://www.linkedin.com/in/angelica-willis/","s":"REQUEST_SENT","d":"2026-06-17"},{"l":"investor","n":"Angela L.","p":"","c":"","u":"https://www.linkedin.com/in/hiangela/","s":"REQUEST_SENT","d":"2026-06-17"},{"l":"investor","n":"Teemu Ruuska","p":"","c":"","u":"https://www.linkedin.com/in/teemuruuska/","s":"REQUEST_SENT","d":"2026-06-17"},{"l":"investor","n":"Jozy Altidore","p":"","c":"","u":"https://www.linkedin.com/in/jozyaltidore/","s":"REQUEST_SENT","d":"2026-06-18"},{"l":"investor","n":"Alex Hemmerlein","p":"","c":"","u":"https://www.linkedin.com/in/alexhemmerlein/","s":"REQUEST_SENT","d":"2026-06-18"},{"l":"investor","n":"Gil Moran","p":"","c":"","u":"https://www.linkedin.com/in/gilmoran/","s":"REQUEST_SENT","d":"2026-06-19"},{"l":"investor","n":"Casey Toohill","p":"","c":"","u":"https://www.linkedin.com/in/casey-toohill/","s":"REQUEST_SENT","d":"2026-06-19"},{"l":"investor","n":"Caroline Kutler","p":"","c":"","u":"https://www.linkedin.com/in/caroline-kutler-00a70a17/","s":"REQUEST_SENT","d":"2026-06-19"},{"l":"investor","n":"Harrison Phillips","p":"","c":"","u":"https://www.linkedin.com/in/harrison-phillips-2b7a6bb2/","s":"REQUEST_SENT","d":"2026-06-20"},{"l":"investor","n":"Matt Rousso","p":"","c":"","u":"https://www.linkedin.com/in/mattrousso/","s":"REQUEST_SENT","d":"2026-06-20"},{"l":"investor","n":"Edwin E. Draughan","p":"","c":"","u":"https://www.linkedin.com/in/edwindraughan/","s":"REQUEST_SENT","d":"2026-06-20"},{"l":"investor","n":"Pialy Aditya","p":"","c":"","u":"https://www.linkedin.com/in/pialy/","s":"REQUEST_SENT","d":"2026-06-20"},{"l":"investor","n":"Greg Grissom","p":"","c":"","u":"https://www.linkedin.com/in/greg-grissom-1b47328/","s":"REQUEST_SENT","d":"2026-06-21"},{"l":"investor","n":"Jake Jackson","p":"","c":"","u":"https://www.linkedin.com/in/jake-jackson-4425ba12/","s":"REQUEST_SENT","d":"2026-06-21"},{"l":"investor","n":"Alfonso Heredia","p":"","c":"","u":"https://www.linkedin.com/in/alfonso-heredia-a7665626/","s":"REQUEST_SENT","d":"2026-06-21"},{"l":"investor","n":"Mike Davidson","p":"","c":"","u":"https://www.linkedin.com/in/mike-davidson-00279765/","s":"REQUEST_SENT","d":"2026-06-22"},{"l":"investor","n":"Anthony Curci","p":"","c":"","u":"https://www.linkedin.com/in/anthonycurci/","s":"REQUEST_SENT","d":"2026-06-22"},{"l":"investor","n":"Matt Wiener","p":"","c":"","u":"https://www.linkedin.com/in/mjwiener/","s":"REQUEST_SENT","d":"2026-06-22"},{"l":"investor","n":"Nicholas Cartisano","p":"","c":"","u":"https://www.linkedin.com/in/nicholas-cartisano/","s":"REQUEST_SENT","d":"2026-06-23"},{"l":"investor","n":"Pete Weldon","p":"","c":"","u":"https://www.linkedin.com/in/pete-weldon-002b19220/","s":"REQUEST_SENT","d":"2026-06-23"},{"l":"investor","n":"Chris W Bednarz","p":"","c":"","u":"https://www.linkedin.com/in/chris-w-bednarz-a2498092/","s":"REQUEST_SENT","d":"2026-06-23"},{"l":"investor","n":"RYAN NELSEN onzm","p":"","c":"","u":"https://www.linkedin.com/in/ryan-nelsen-onzm-2a00254/","s":"REQUEST_SENT","d":"2026-06-24"},{"l":"investor","n":"Nishant Tella","p":"","c":"","u":"https://www.linkedin.com/in/nishant-tella-6551113/","s":"REQUEST_SENT","d":"2026-06-24"},{"l":"investor","n":"Brandon Lafountain","p":"","c":"","u":"https://www.linkedin.com/in/brandon-lafountain-aa5598182/","s":"REQUEST_SENT","d":"2026-06-25"},{"l":"investor","n":"Will Pollock","p":"","c":"","u":"https://www.linkedin.com/in/will-pollock/","s":"REQUEST_SENT","d":"2026-06-25"},{"l":"investor","n":"Tim Post","p":"","c":"","u":"https://www.linkedin.com/in/tim-post-b6b6861b3/","s":"REQUEST_SENT","d":"2026-06-25"},{"l":"investor","n":"Tom Wengler","p":"","c":"","u":"https://www.linkedin.com/in/tom-wengler-65ba84236/","s":"REQUEST_SENT","d":"2026-06-26"},{"l":"investor","n":"Marc Radow","p":"","c":"","u":"https://www.linkedin.com/in/marc-radow-sport/","s":"REQUEST_SENT","d":"2026-06-26"},{"l":"investor","n":"Megan McCashland","p":"","c":"","u":"https://www.linkedin.com/in/megan-mccashland-63761412b/","s":"REQUEST_SENT","d":"2026-06-26"},{"l":"investor","n":"Sophie O'Leary","p":"","c":"","u":"https://www.linkedin.com/in/sophie-o-leary-bb2623218/","s":"REQUEST_SENT","d":"2026-06-27"},{"l":"investor","n":"Rollins Stallworth III","p":"","c":"","u":"https://www.linkedin.com/in/rollins-stallworth-iii-ba18984b/","s":"REQUEST_SENT","d":"2026-06-27"},{"l":"investor","n":"Cameron \"Cam\" Fordham","p":"","c":"","u":"https://www.linkedin.com/in/camfordham/","s":"REQUEST_SENT","d":"2026-06-27"},{"l":"investor","n":"Gary LaDrido","p":"","c":"","u":"https://www.linkedin.com/in/garyladrido/","s":"REQUEST_SENT","d":"2026-06-28"},{"l":"investor","n":"Ian White","p":"","c":"","u":"https://www.linkedin.com/in/ian-white-456968344/","s":"REQUEST_SENT","d":"2026-06-28"},{"l":"investor","n":"Rose Atwood","p":"","c":"","u":"https://www.linkedin.com/in/roseatwood/","s":"REQUEST_SENT","d":"2026-06-29"},{"l":"investor","n":"Jeff Heitzman","p":"","c":"","u":"https://www.linkedin.com/in/jeffheitzman/","s":"REQUEST_SENT","d":"2026-06-29"},{"l":"investor","n":"Zack Matta","p":"","c":"","u":"https://www.linkedin.com/in/zackmatta/","s":"REQUEST_SENT","d":"2026-06-29"},{"l":"investor","n":"Archana Bhan","p":"","c":"","u":"https://www.linkedin.com/in/archanabhan/","s":"REQUEST_SENT","d":"2026-06-29"},{"l":"investor","n":"David Voorhes","p":"","c":"","u":"https://www.linkedin.com/in/david-voorhes-8780735/","s":"REQUEST_SENT","d":"2026-06-30"},{"l":"investor","n":"Ben Littauer","p":"","c":"","u":"https://www.linkedin.com/in/littauer/","s":"REQUEST_SENT","d":"2026-06-30"},{"l":"investor","n":"Kishore Ganji","p":"","c":"","u":"https://www.linkedin.com/in/kishoreganji/","s":"REQUEST_SENT","d":"2026-06-30"},{"l":"investor","n":"Michael Esrubilsky","p":"","c":"","u":"https://www.linkedin.com/in/michael-esrubilsky-260147/","s":"REQUEST_SENT","d":"2026-07-01"},{"l":"investor","n":"Damoder Reddy","p":"","c":"","u":"https://www.linkedin.com/in/damoder-reddy-a9927/","s":"REQUEST_SENT","d":"2026-07-01"},{"l":"investor","n":"Brendan P. Heegan","p":"","c":"","u":"https://www.linkedin.com/in/brendanheegan/","s":"REQUEST_SENT","d":"2026-07-01"},{"l":"investor","n":"Paul Prescott","p":"","c":"","u":"https://www.linkedin.com/in/paul-prescott-8546a9100/","s":"REQUEST_SENT","d":"2026-07-02"},{"l":"investor","n":"Nolo Mokoena","p":"","c":"","u":"https://www.linkedin.com/in/nolomokoena/","s":"REQUEST_SENT","d":"2026-07-02"},{"l":"investor","n":"Isabella Reynolds","p":"","c":"","u":"https://www.linkedin.com/in/isabellair100/","s":"REQUEST_SENT","d":"2026-07-02"},{"l":"investor","n":"Parker Levi","p":"","c":"","u":"https://www.linkedin.com/in/parker-levi-a973a9141/","s":"REQUEST_SENT","d":"2026-07-03"},{"l":"investor","n":"Julian Kershaw-Weih","p":"","c":"","u":"https://www.linkedin.com/in/julian-kershaw-weih-79191945/","s":"REQUEST_SENT","d":"2026-07-03"},{"l":"investor","n":"Alex Tung","p":"","c":"","u":"https://www.linkedin.com/in/alex-tung-2a4298104/","s":"REQUEST_SENT","d":"2026-07-03"},{"l":"investor","n":"Gabi Makari","p":"","c":"","u":"https://www.linkedin.com/in/gabimakari/","s":"REQUEST_SENT","d":"2026-07-04"},{"l":"investor","n":"Sahil Khatod","p":"","c":"","u":"https://www.linkedin.com/in/sahilkhatod/","s":"REQUEST_SENT","d":"2026-07-04"},{"l":"investor","n":"Xandra Laskowski","p":"","c":"","u":"https://www.linkedin.com/in/xandra-laskowski-765b1813/","s":"REQUEST_SENT","d":"2026-07-05"},{"l":"investor","n":"Bettina Briz","p":"","c":"","u":"https://www.linkedin.com/in/bettinabriz/","s":"REQUEST_SENT","d":"2026-07-05"},{"l":"investor","n":"Carmen Palafox","p":"","c":"","u":"https://www.linkedin.com/in/carmenpalafox/","s":"REQUEST_SENT","d":"2026-07-06"},{"l":"investor","n":"Alison Strong","p":"","c":"","u":"https://www.linkedin.com/in/connect-strong/","s":"REQUEST_SENT","d":"2026-07-06"},{"l":"investor","n":"Kevin Chenault","p":"","c":"","u":"https://www.linkedin.com/in/kevin-chenault-a5a454115/","s":"REQUEST_SENT","d":"2026-07-06"},{"l":"investor","n":"Manish Patel","p":"","c":"","u":"https://www.linkedin.com/in/manishpatelli/","s":"REQUEST_SENT","d":"2026-07-07"},{"l":"investor","n":"Angelo Del Duca","p":"","c":"","u":"https://www.linkedin.com/in/angelo-del-duca-41369351/","s":"REQUEST_SENT","d":"2026-07-07"},{"l":"investor","n":"Nicole Angel Wachter","p":"","c":"","u":"https://www.linkedin.com/in/nicole-angel-wachter/","s":"REQUEST_SENT","d":"2026-07-08"},{"l":"investor","n":"Angelica W.","p":"","c":"","u":"https://www.linkedin.com/in/angelicawalter/","s":"REQUEST_SENT","d":"2026-07-08"},{"l":"investor","n":"Angela Scontrino","p":"","c":"","u":"https://www.linkedin.com/in/angela-scontrino-647752100/","s":"REQUEST_SENT","d":"2026-07-08"},{"l":"investor","n":"Angel Lee","p":"","c":"","u":"https://www.linkedin.com/in/angelleeceo/","s":"REQUEST_SENT","d":"2026-07-09"}];
+const KEY = 'ccopc-prospect-desk-v1';
+const STATUSES = {
+  NOT_CONNECTED:'Not Connected',
+  REQUEST_SENT:'Request Sent / Pending',
+  CONNECTED:'Connected',
+  RESPONDED:'Responded',
+  FOLLOW_UP:'Follow-Up Required'
+};
+const ROLE_LABEL = {admin:'Administrator', member:'Team member', viewer:'View only'};
+const SHORT = {NOT_CONNECTED:'Not connected', REQUEST_SENT:'Pending', CONNECTED:'Connected', RESPONDED:'Responded', FOLLOW_UP:'Follow-up'};
+
+let S = null;                    // persisted state
+let session = null;              // {name, role}
+let view = 'dashboard';          // dashboard | list:<id> | activity | integration | access
+let filters = {};                // per-list filters
+let memoryOnly = false;
+
+const uid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
+const canon = u => (u||'').toLowerCase().trim().replace(/^https?:\/\/(www\.)?/,'').split('?')[0].replace(/\/+$/,'');
+const esc = s => String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtDate = ts => new Date(ts).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
+const fmtDT = ts => new Date(ts).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+const dayKey = ts => { const d=new Date(ts); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+const todayKey = () => dayKey(Date.now());
+function weekStart(){ const d=new Date(); const dow=(d.getDay()+6)%7; d.setHours(0,0,0,0); d.setDate(d.getDate()-dow); return d.getTime(); }
+
+function freshState(){
+  const now = Date.now();
+  const lists = [
+    {id:'investor',  name:'Investors — Tier 1',        icp:'Angel & Private Investors', dailyTarget:15, createdAt:now, archived:false},
+    {id:'community', name:'Community Leads — Tier 2',  icp:'Sports & Community Leaders', dailyTarget:15, createdAt:now, archived:false}
+  ];
+  const prospects = RAW_SEED.map(r=>{
+    const t = new Date(r.d+'T09:00:00').getTime();
+    return {id:uid(), listId:r.l, name:r.n, position:r.p||'', company:r.c||'',
+      icp: r.l==='investor'?'Angel & Private Investors':'Sports & Community Leaders',
+      url:r.u||'', status:r.s, addedAt:t, updatedAt:t, archived:false, note:'',
+      history:[{ts:t,user:'Import',from:null,to:r.s}]};
+  });
+  return {
+    lists, prospects,
+    activity:[{id:uid(),ts:now,user:'System',action:'import',detail:`Imported ${prospects.length} prospects from "Tier 2 Community Leads DM Outreach" workbook`}],
+    passcodes:{admin:'7421',member:'1500',viewer:'0000'},
+    defaultCodes:true
+  };
+}
+
+async function persist(){
+  if(memoryOnly) return;
+  try{ await window.storage.set(KEY, JSON.stringify(S)); }
+  catch(e){ memoryOnly = true; }
+}
+async function loadState(){
+  try{
+    const r = await window.storage.get(KEY);
+    if(r && r.value) return JSON.parse(r.value);
+  }catch(e){ /* first run or storage unavailable */ }
+  return null;
+}
+
+/* ================= HELPERS ================= */
+const listById = id => S.lists.find(l=>l.id===id);
+const activeLists = () => S.lists.filter(l=>!l.archived);
+const listProspects = (id, includeArchived=false) => S.prospects.filter(p=>p.listId===id && (includeArchived||!p.archived));
+function addActivity(action, detail){
+  S.activity.unshift({id:uid(), ts:Date.now(), user:session?session.name:'System', action, detail});
+  if(S.activity.length>800) S.activity.length = 800;
+}
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.innerHTML = msg;
+  t.classList.add('on');
+  clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('on'), 2600);
+}
+const can = perm => {
+  if(!session) return false;
+  if(session.role==='admin') return true;
+  if(session.role==='member') return ['add','status','edit','archive'].includes(perm);
+  return false;
+};
+
+function countToday(listId){ const k=todayKey(); return listProspects(listId).filter(p=>dayKey(p.addedAt)===k).length; }
+function countWeek(listId){ const ws=weekStart(); return listProspects(listId).filter(p=>p.addedAt>=ws).length; }
+function statusCounts(listId){
+  const c = {}; Object.keys(STATUSES).forEach(k=>c[k]=0);
+  listProspects(listId).forEach(p=>c[p.status]!==undefined && c[p.status]++);
+  return c;
+}
+
+function ring(done, target, size=64){
+  const r=(size/2)-5, circ=2*Math.PI*r, pct=Math.min(done/target,1);
+  return `<svg class="ring" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="${done} of ${target} today">
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--gray-soft)" stroke-width="6"/>
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${pct>=1?'var(--green)':'var(--gold-deep)'}" stroke-width="6"
+      stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${circ*(1-pct)}" transform="rotate(-90 ${size/2} ${size/2})"/>
+    <text x="50%" y="46%" text-anchor="middle" font-family="Archivo" font-weight="700" font-size="${size*0.26}" fill="var(--ink)">${done}</text>
+    <text x="50%" y="66%" text-anchor="middle" font-family="Inter" font-weight="600" font-size="${size*0.14}" fill="var(--muted)">of ${target}</text>
+  </svg>`;
+}
+
+/* ================= NAV ================= */
+function renderNav(){
+  const nav = document.getElementById('sideNav');
+  const li = activeLists().map(l=>{
+    const on = view==='list:'+l.id;
+    return `<button class="nav-item ${on?'on':''}" data-nav="list:${l.id}">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="2" width="11" height="2" rx="1" fill="currentColor"/><rect x="1.5" y="6" width="11" height="2" rx="1" fill="currentColor" opacity=".65"/><rect x="1.5" y="10" width="7" height="2" rx="1" fill="currentColor" opacity=".4"/></svg>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l.name)}</span>
+      <span class="cnt">${listProspects(l.id).length}</span></button>`;
+  }).join('');
+  nav.innerHTML = `
+    <button class="nav-item ${view==='dashboard'?'on':''}" data-nav="dashboard">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="1.5" width="4.5" height="4.5" rx="1.2" fill="currentColor"/><rect x="8" y="1.5" width="4.5" height="4.5" rx="1.2" fill="currentColor" opacity=".55"/><rect x="1.5" y="8" width="4.5" height="4.5" rx="1.2" fill="currentColor" opacity=".55"/><rect x="8" y="8" width="4.5" height="4.5" rx="1.2" fill="currentColor"/></svg>
+      Dashboard</button>
+    <div class="nav-label">PROSPECT LISTS</div>
+    ${li}
+    ${can('lists')?`<button class="nav-item" data-nav="newlist" style="color:#7C7466">＋ &nbsp;New list</button>`:''}
+    <div class="nav-label">WORKSPACE</div>
+    <button class="nav-item ${view==='activity'?'on':''}" data-nav="activity">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.4" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M7 4v3.2l2.2 1.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>
+      Activity log</button>
+    <button class="nav-item ${view==='integration'?'on':''}" data-nav="integration">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5.2 8.8L2.8 11.2M8.8 5.2l2.4-2.4M5.6 3.2L3.2 5.6a2 2 0 000 2.8l2.4 2.4a2 2 0 002.8 0l2.4-2.4a2 2 0 000-2.8L8.4 3.2a2 2 0 00-2.8 0z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
+      LinkedIn sync</button>
+    <button class="nav-item ${view==='access'?'on':''}" data-nav="access">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2.5" y="6" width="9" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M4.8 6V4.5a2.2 2.2 0 014.4 0V6" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+      Access</button>`;
+}
+
+/* ================= DASHBOARD ================= */
+function renderDashboard(){
+  const all = S.prospects.filter(p=>!p.archived);
+  const c = {}; Object.keys(STATUSES).forEach(k=>c[k]=all.filter(p=>p.status===k).length);
+  const contacted = all.length - c.NOT_CONNECTED;
+  const respRate = contacted ? Math.round((c.RESPONDED / contacted)*100) : 0;
+  const hour = new Date().getHours();
+  const greet = hour<12?'Good morning':hour<18?'Good afternoon':'Good evening';
+  const dateStr = new Date().toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric', year:'numeric'});
+
+  const cards = activeLists().map(l=>{
+    const today = countToday(l.id), week = countWeek(l.id);
+    const wTarget = l.dailyTarget*5;
+    const sc = statusCounts(l.id);
+    return `<div class="card lc" data-open-list="${l.id}" role="button" tabindex="0">
+      <div class="lc-top">${ring(today, l.dailyTarget, 66)}
+        <div class="lc-title"><b>${esc(l.name)}</b><span>${esc(l.icp)} · ${listProspects(l.id).length} prospects</span></div></div>
+      <div>
+        <div class="lc-week"><span>This week</span><span><b style="color:var(--ink)">${week}</b> / ${wTarget}</span></div>
+        <div class="bar"><i style="width:${Math.min(week/wTarget*100,100)}%"></i></div>
+      </div>
+      <div class="pills">${Object.keys(STATUSES).map(k=> sc[k]?`<span class="pill st-${k}">${sc[k]} ${SHORT[k]}</span>`:'').join('')}</div>
+    </div>`;
+  }).join('');
+
+  const recent = S.activity.slice(0,7).map(a=>`
+    <tr class="act-row"><td>${fmtDT(a.ts)}</td>
+    <td><span class="act-chip ac-${a.action}">${a.action}</span></td>
+    <td>${esc(a.detail)}<span style="color:var(--muted)"> — ${esc(a.user)}</span></td></tr>`).join('');
+
+  return `
+  <div class="page-head">
+    <div><div class="eyebrow">Monitoring · ${dateStr}</div>
+      <h1>${greet}, ${esc(session.name.split(' ')[0])}</h1>
+      <div class="sub">Live view of every prospect list for Dan Soviero's investor outreach.</div></div>
+    <div class="head-actions">
+      <button class="btn btn-ghost btn-sm" data-digest>Today's snapshot</button>
+      ${can('lists')?`<button class="btn btn-dark btn-sm" data-nav="newlist">＋ New list</button>`:''}</div>
+  </div>
+  ${session.portal==='client'?(()=>{const d=todayDigest();return `
+  <div class="card" style="display:flex;align-items:center;gap:18px;padding:15px 20px;margin-bottom:20px;border-left:4px solid var(--gold);flex-wrap:wrap">
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style="flex:none"><path d="M9 2a4.5 4.5 0 00-4.5 4.5c0 3-1.3 4-1.3 4h11.6s-1.3-1-1.3-4A4.5 4.5 0 009 2zM7.5 13.5a1.5 1.5 0 003 0" stroke="var(--gold-deep)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <div style="flex:1;min-width:220px;font-size:13px"><b style="color:var(--ink)">Today so far:</b>
+      <b style="color:var(--gold-deep)">${d.added}</b> prospect${d.added===1?'':'s'} added ·
+      <b style="color:var(--green)">${d.connected}</b> connected${d.responded?` · <b style="color:var(--blue)">${d.responded}</b> responded`:''}</div>
+    <button class="btn btn-ghost btn-sm" data-digest>Details</button>
+  </div>`})():''}
+  <div class="kpis">
+    <div class="card kpi"><div class="k-label">Total prospects</div><div class="k-val">${all.length}</div><div class="k-note">across ${activeLists().length} active lists</div></div>
+    <div class="card kpi"><div class="k-label">Requests pending</div><div class="k-val">${c.REQUEST_SENT}</div><div class="k-note">awaiting acceptance</div></div>
+    <div class="card kpi"><div class="k-label">Connected</div><div class="k-val">${c.CONNECTED + c.RESPONDED + c.FOLLOW_UP}</div><div class="k-note">${c.RESPONDED} responded</div></div>
+    <div class="card kpi"><div class="k-label">Follow-ups due</div><div class="k-val">${c.FOLLOW_UP}</div><div class="k-note">need attention</div></div>
+    <div class="card kpi"><div class="k-label">Response rate</div><div class="k-val">${respRate}%</div><div class="k-note">of contacted prospects</div></div>
+  </div>
+  <div class="sec-title">Daily targets — 15 qualified prospects per list</div>
+  <div class="list-cards">${cards || '<div class="card empty"><b>No lists yet</b>Create your first prospect list to begin.</div>'}</div>
+  <div class="sec-title">Recent activity</div>
+  <div class="card tbl-wrap"><table><tbody>${recent||'<tr><td class="empty">No activity yet.</td></tr>'}</tbody></table></div>`;
+}
+
+/* ================= LIST VIEW ================= */
+function renderList(listId){
+  const l = listById(listId);
+  if(!l) { view='dashboard'; return renderDashboard(); }
+  const f = filters[listId] || (filters[listId] = {q:'',status:'',icp:'',from:'',to:'',arch:false});
+  const today = countToday(listId), week = countWeek(listId);
+  const remaining = Math.max(l.dailyTarget - today, 0);
+  const total = listProspects(listId).length;
+  const icps = [...new Set(S.prospects.filter(p=>p.listId===listId).map(p=>p.icp).filter(Boolean))].sort();
+
+  let rows = S.prospects.filter(p=>p.listId===listId && (f.arch ? true : !p.archived));
+  if(f.q){ const q=f.q.toLowerCase(); rows = rows.filter(p=>(p.name+' '+p.company+' '+p.position).toLowerCase().includes(q)); }
+  if(f.status) rows = rows.filter(p=>p.status===f.status);
+  if(f.icp) rows = rows.filter(p=>p.icp===f.icp);
+  if(f.from) rows = rows.filter(p=>dayKey(p.addedAt) >= f.from);
+  if(f.to) rows = rows.filter(p=>dayKey(p.addedAt) <= f.to);
+  rows.sort((a,b)=>b.addedAt-a.addedAt);
+
+  const canStatus = can('status'), canEdit = can('edit'), canDel = can('delete');
+  const trs = rows.map(p=>`
+    <tr>
+      <td><span class="p-name">${esc(p.name)}${p.archived?'<span class="badge-arch">Archived</span>':''}</span>
+          ${p.position?`<span class="p-pos" title="${esc(p.position)}">${esc(p.position)}</span>`:''}</td>
+      <td>${esc(p.company)||'<span style="color:var(--muted)">—</span>'}</td>
+      <td style="font-size:12px;color:var(--muted)">${esc(p.icp)}</td>
+      <td>${p.url?`<a class="link-btn" href="${esc(p.url)}" target="_blank" rel="noopener">Profile ↗</a>`:'<span style="color:var(--muted)">—</span>'}</td>
+      <td>${canStatus
+        ? `<select class="st-select st-${p.status}" data-status-for="${p.id}" aria-label="Status for ${esc(p.name)}">${Object.keys(STATUSES).map(k=>`<option value="${k}" ${k===p.status?'selected':''}>${STATUSES[k]}</option>`).join('')}</select>`
+        : `<span class="pill st-${p.status}">${STATUSES[p.status]}</span>`}</td>
+      <td style="white-space:nowrap;font-size:12px;color:var(--muted)" title="Updated ${fmtDT(p.updatedAt)}">${fmtDate(p.addedAt)}</td>
+      <td><div class="row-actions">
+        ${canEdit?`<button class="icon-btn" data-edit="${p.id}" title="Edit"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M9.2 1.8l2 2L4.6 10.4l-2.6.6.6-2.6 6.6-6.6z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></button>`:''}
+        ${can('archive')?`<button class="icon-btn" data-archive="${p.id}" title="${p.archived?'Restore':'Archive'}"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1.5" y="2" width="10" height="2.6" rx=".8" stroke="currentColor" stroke-width="1.3"/><path d="M2.5 4.6V10a1 1 0 001 1h6a1 1 0 001-1V4.6M5.2 7h2.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></button>`:''}
+        ${canDel?`<button class="icon-btn danger" data-del="${p.id}" title="Delete"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2.5 3.5h8M5 3.5V2.3a.8.8 0 01.8-.8h1.4a.8.8 0 01.8.8v1.2M4 3.5l.5 7a1 1 0 001 .9h2a1 1 0 001-.9l.5-7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></button>`:''}
+      </div></td>
+    </tr>`).join('');
+
+  return `
+  <div class="page-head">
+    <div><div class="eyebrow">${esc(l.icp)}</div><h1>${esc(l.name)}</h1>
+      <div class="sub">${total} prospects · target ${l.dailyTarget} qualified adds per day</div></div>
+    <div class="head-actions">
+      ${can('add')?`<button class="btn btn-gold btn-sm" style="width:auto" data-addto="${l.id}">＋ Add prospect</button>`:''}
+      ${can('lists')?`<button class="btn btn-ghost btn-sm" data-editlist="${l.id}">List settings</button>`:''}
+    </div>
+  </div>
+  <div class="target-strip">
+    <div class="card ts-card">${ring(today, l.dailyTarget, 58)}
+      <div><div class="t-lab">Added today</div><div class="t-num">${today} <span style="font-size:13px;color:var(--muted);font-weight:600">/ ${l.dailyTarget}</span></div>
+      <div class="t-sub">${remaining===0?'Daily target reached ✓':remaining+' remaining today'}</div></div></div>
+    <div class="card ts-card"><div style="flex:1"><div class="t-lab">This week</div><div class="t-num">${week} <span style="font-size:13px;color:var(--muted);font-weight:600">/ ${l.dailyTarget*5}</span></div>
+      <div class="bar" style="margin-top:7px"><i style="width:${Math.min(week/(l.dailyTarget*5)*100,100)}%"></i></div></div></div>
+    <div class="card ts-card"><div><div class="t-lab">All time</div><div class="t-num">${total}</div><div class="t-sub">since ${fmtDate(l.createdAt)}</div></div></div>
+  </div>
+  <div class="toolbar">
+    <input type="text" placeholder="Search name, company, position…" value="${esc(f.q)}" data-f="q" aria-label="Search prospects">
+    <select data-f="status" aria-label="Filter by status"><option value="">All statuses</option>${Object.keys(STATUSES).map(k=>`<option value="${k}" ${f.status===k?'selected':''}>${STATUSES[k]}</option>`).join('')}</select>
+    <select data-f="icp" aria-label="Filter by ICP"><option value="">All ICPs</option>${icps.map(i=>`<option ${f.icp===i?'selected':''}>${esc(i)}</option>`).join('')}</select>
+    <input type="date" value="${f.from}" data-f="from" aria-label="Added from" title="Added from">
+    <input type="date" value="${f.to}" data-f="to" aria-label="Added to" title="Added to">
+    <label style="font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-left:2px"><input type="checkbox" data-f="arch" ${f.arch?'checked':''}> Show archived</label>
+  </div>
+  <div class="card tbl-wrap">
+    <table><thead><tr><th>Prospect</th><th>Company</th><th>ICP</th><th>LinkedIn</th><th>Status</th><th>Added</th><th></th></tr></thead>
+    <tbody>${trs || `<tr><td colspan="7"><div class="empty"><b>No prospects match</b>Adjust your search or filters${can('add')?', or add a new prospect':''}.</div></td></tr>`}</tbody></table>
+  </div>
+  <div class="count-note">Showing ${rows.length} of ${total} prospect${total===1?'':'s'} · statuses update via manual tracking (see LinkedIn sync)</div>`;
+}
+
+/* ================= ACTIVITY ================= */
+function renderActivity(){
+  const q = (filters._act||'').toLowerCase();
+  const rows = S.activity.filter(a=>!q || (a.detail+' '+a.user+' '+a.action).toLowerCase().includes(q));
+  return `
+  <div class="page-head"><div><div class="eyebrow">Audit trail</div><h1>Activity log</h1>
+    <div class="sub">Every addition, edit, and status change is time-stamped with the user who made it.</div></div></div>
+  <div class="toolbar"><input type="text" placeholder="Search activity…" value="${esc(filters._act||'')}" data-actq aria-label="Search activity"></div>
+  <div class="card tbl-wrap"><table><thead><tr><th>When</th><th>Action</th><th>Detail</th><th>User</th></tr></thead><tbody>
+    ${rows.map(a=>`<tr class="act-row"><td>${fmtDT(a.ts)}</td><td><span class="act-chip ac-${a.action}">${a.action}</span></td><td>${esc(a.detail)}</td><td style="color:var(--muted)">${esc(a.user)}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">No activity found.</td></tr>'}
+  </tbody></table></div>`;
+}
+
+/* ================= INTEGRATION ================= */
+function renderIntegration(){
+  return `
+  <div class="page-head"><div><div class="eyebrow">Connection tracking</div><h1>LinkedIn synchronization</h1>
+    <div class="sub">How connection statuses stay accurate — using only authorized, policy-compliant methods.</div></div></div>
+  <div class="card int-status"><span class="int-dot"></span>
+    <div><b>Manual tracking mode is active</b>
+    <span>Statuses are updated by the team directly in each list. Every change is time-stamped and attributed in the activity log.</span></div></div>
+  <div class="int-grid">
+    <div class="card int-card"><span class="tag tag-ok">Active now</span>
+      <h3>Manual status workflow</h3>
+      <p>The team records each step of Dan's outreach as it happens:</p>
+      <ul><li><b>Not Connected</b> — added to the list, no request sent yet</li>
+      <li><b>Request Sent / Pending</b> — invitation sent from Dan's account</li>
+      <li><b>Connected</b> — invitation accepted</li>
+      <li><b>Responded</b> — prospect replied to a message</li>
+      <li><b>Follow-Up Required</b> — needs a nudge or next touch</li></ul>
+      <p style="color:var(--muted);font-size:12px">This is the reliable, compliant baseline and works today with no external dependencies.</p></div>
+    <div class="card int-card"><span class="tag tag-wait">Requires setup</span>
+      <h3>Official LinkedIn integration</h3>
+      <p>LinkedIn's public API does <b>not</b> expose another member's connection or reply status to third-party apps — that data is only available through LinkedIn's own official channels:</p>
+      <ul><li><b>Sign In with LinkedIn (OIDC)</b> — verifies Dan's identity for secure login</li>
+      <li><b>Sales Navigator + a licensed CRM sync</b> (e.g. Sales Navigator's CRM integrations) — the official route to richer outreach data</li>
+      <li><b>Periodic CSV import</b> of Dan's own connections export (Settings → Data privacy → Get a copy of your data), matched against this database</li></ul>
+      <button class="btn btn-ghost btn-sm" disabled title="Requires server-side OAuth credentials approved by LinkedIn">Connect LinkedIn (awaiting API credentials)</button></div>
+  </div>
+  <div class="note-box"><b>Compliance commitment:</b> this system never scrapes LinkedIn, automates actions on Dan's account, or uses unofficial APIs. If LinkedIn approves API access for this application, automatic synchronization can be enabled server-side without any change to the team's workflow — manual updates remain available as the fallback at all times.</div>`;
+}
+
+/* ================= ACCESS ================= */
+function renderAccess(){
+  return `
+  <div class="page-head"><div><div class="eyebrow">Portals</div><h1>Access & portals</h1>
+    <div class="sub">Two entry points keep the workspace simple for the team and safe to share with the client.</div></div></div>
+  <div class="int-grid">
+    <div class="card int-card"><span class="tag tag-ok">Full workspace</span><h3>CrossCore VA</h3>
+      <ul>
+        <li>Add, edit, archive, and delete prospects</li>
+        <li>Update connection statuses</li>
+        <li>Create and manage prospect lists and daily targets</li>
+      </ul>
+      <p style="color:var(--muted);font-size:12px">For the CrossCore virtual assistant team running daily outreach.</p></div>
+    <div class="card int-card"><span class="tag tag-wait">View only</span><h3>Client Portal</h3>
+      <ul>
+        <li>Live dashboard across every list</li>
+        <li>Browse, search, and filter all prospects</li>
+        <li>Full activity log with timestamps</li>
+      </ul>
+      <p style="color:var(--muted);font-size:12px">For Dan Soviero — monitoring without any risk of accidental edits.</p></div>
+  </div>
+  <div class="note-box" style="margin-top:16px">Currently signed in via the <b>${session.portal==='team'?'CrossCore VA':'Client Portal'}</b> entrance. Use "Switch portal" in the sidebar to change. For a production deployment with real accounts and server-enforced permissions, this same interface can be connected to a hosted backend — the layout and workflow stay identical.</div>`;
+}
+
+/* ================= MODALS ================= */
+function openModal(html){ document.getElementById('modalBox').innerHTML = html; document.getElementById('overlay').classList.add('on'); }
+function closeModal(){ document.getElementById('overlay').classList.remove('on'); }
+
+function prospectModal(listId, prospect){
+  const isEdit = !!prospect;
+  const l = listById(listId);
+  const p = prospect || {name:'',position:'',company:'',icp:l.icp,url:'',status:'NOT_CONNECTED',note:''};
+  openModal(`
+  <div class="modal-head"><h2>${isEdit?'Edit prospect':'Add prospect'} · ${esc(l.name)}</h2><button class="close-x" data-close>×</button></div>
+  <div class="modal-body">
+    <p class="form-err" id="pErr"></p>
+    <div class="field"><label>Full name *</label><input id="pName" type="text" value="${esc(p.name)}" placeholder="e.g. Jordan Reyes"></div>
+    <div class="grid2">
+      <div class="field"><label>Position</label><input id="pPos" type="text" value="${esc(p.position)}" placeholder="e.g. Managing Partner"></div>
+      <div class="field"><label>Company</label><input id="pComp" type="text" value="${esc(p.company)}" placeholder="e.g. Summit Capital"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>ICP category *</label><input id="pIcp" type="text" value="${esc(p.icp)}" placeholder="e.g. Angel Investors"></div>
+      <div class="field"><label>Status</label><select id="pStatus">${Object.keys(STATUSES).map(k=>`<option value="${k}" ${k===p.status?'selected':''}>${STATUSES[k]}</option>`).join('')}</select></div>
+    </div>
+    <div class="field"><label>LinkedIn profile URL</label><input id="pUrl" type="url" value="${esc(p.url)}" placeholder="https://www.linkedin.com/in/…"></div>
+    <div class="field"><label>Notes</label><textarea id="pNote" rows="2" placeholder="Optional context, e.g. warm intro via…">${esc(p.note)}</textarea></div>
+  </div>
+  <div class="modal-foot"><button class="btn btn-ghost btn-sm" data-close>Cancel</button>
+    <button class="btn btn-gold btn-sm" style="width:auto" id="pSave" data-list="${listId}" data-pid="${isEdit?p.id:''}">${isEdit?'Save changes':'Add prospect'}</button></div>`);
+}
+
+function listModal(list){
+  const isEdit = !!list;
+  const l = list || {name:'', icp:'', dailyTarget:15};
+  openModal(`
+  <div class="modal-head"><h2>${isEdit?'List settings':'New prospect list'}</h2><button class="close-x" data-close>×</button></div>
+  <div class="modal-body">
+    <p class="form-err" id="lErr"></p>
+    <div class="field"><label>List name *</label><input id="lName" type="text" value="${esc(l.name)}" placeholder="e.g. Family Offices — Tier 1"></div>
+    <div class="field"><label>ICP category *</label><input id="lIcp" type="text" value="${esc(l.icp)}" placeholder="e.g. Family Office Principals"></div>
+    <div class="field"><label>Daily target (qualified prospects)</label><input id="lTarget" type="number" min="1" max="200" value="${l.dailyTarget}"></div>
+  </div>
+  <div class="modal-foot">
+    ${isEdit?`<button class="btn btn-danger btn-sm" id="lArchive" data-lid="${l.id}" style="margin-right:auto">${l.archived?'Restore list':'Archive list'}</button>`:''}
+    <button class="btn btn-ghost btn-sm" data-close>Cancel</button>
+    <button class="btn btn-gold btn-sm" style="width:auto" id="lSave" data-lid="${isEdit?l.id:''}">${isEdit?'Save':'Create list'}</button></div>`);
+}
+
+/* ================= RENDER ================= */
+function render(){
+  renderNav();
+  const root = document.getElementById('pageRoot');
+  if(view==='dashboard') root.innerHTML = renderDashboard();
+  else if(view.startsWith('list:')) root.innerHTML = renderList(view.slice(5));
+  else if(view==='activity') root.innerHTML = renderActivity();
+  else if(view==='integration') root.innerHTML = renderIntegration();
+  else if(view==='access') root.innerHTML = renderAccess();
+}
+
+/* ================= ACTIONS ================= */
+function findDuplicate(url, name, excludeId){
+  const c = canon(url);
+  return S.prospects.find(p=>{
+    if(p.id===excludeId || p.archived) return false;
+    if(c && canon(p.url)===c) return true;
+    if(!c && p.name.trim().toLowerCase()===name.trim().toLowerCase()) return true;
+    return false;
+  });
+}
+
+document.addEventListener('click', e=>{
+  const t = e.target.closest('[data-nav],[data-open-list],[data-addto],[data-edit],[data-archive],[data-del],[data-editlist],[data-close],[data-digest],#pSave,#lSave,#lArchive');
+  if(!t) return;
+
+  if(t.dataset.digest!==undefined){ digestModal(); return; }
+
+  if(t.dataset.close!==undefined){ closeModal(); return; }
+
+  if(t.dataset.nav){
+    if(t.dataset.nav==='newlist'){ if(can('lists')) listModal(null); return; }
+    view = t.dataset.nav; render(); window.scrollTo(0,0); return;
+  }
+  if(t.dataset.openList){ view='list:'+t.dataset.openList; render(); window.scrollTo(0,0); return; }
+  if(t.dataset.addto){ prospectModal(t.dataset.addto, null); return; }
+  if(t.dataset.edit){ const p=S.prospects.find(x=>x.id===t.dataset.edit); if(p) prospectModal(p.listId, p); return; }
+  if(t.dataset.editlist){ listModal(listById(t.dataset.editlist)); return; }
+
+  if(t.dataset.archive){
+    const p=S.prospects.find(x=>x.id===t.dataset.archive); if(!p) return;
+    p.archived=!p.archived; p.updatedAt=Date.now();
+    addActivity('archive', `${p.archived?'Archived':'Restored'} ${p.name} in ${listById(p.listId).name}`);
+    persist(); render(); toast(p.archived?`<b>${esc(p.name)}</b> archived`:`<b>${esc(p.name)}</b> restored`); return;
+  }
+  if(t.dataset.del){
+    const p=S.prospects.find(x=>x.id===t.dataset.del); if(!p) return;
+    if(!confirm(`Permanently delete ${p.name}? This cannot be undone.`)) return;
+    S.prospects = S.prospects.filter(x=>x.id!==p.id);
+    addActivity('delete', `Deleted ${p.name} from ${listById(p.listId).name}`);
+    persist(); render(); toast(`<b>${esc(p.name)}</b> deleted`); return;
+  }
+
+  if(t.id==='pSave'){
+    const err=document.getElementById('pErr');
+    const name=document.getElementById('pName').value.trim();
+    const icp=document.getElementById('pIcp').value.trim();
+    const url=document.getElementById('pUrl').value.trim();
+    if(!name||!icp){ err.textContent='Name and ICP category are required.'; err.style.display='block'; return; }
+    if(url && !/^https?:\/\/([a-z]+\.)?linkedin\.com\//i.test(url)){ err.textContent='LinkedIn URL should start with https://www.linkedin.com/…'; err.style.display='block'; return; }
+    const pid=t.dataset.pid, listId=t.dataset.list;
+    const dup=findDuplicate(url,name,pid||null);
+    if(dup){ err.textContent=`Duplicate blocked — ${dup.name} already exists in "${listById(dup.listId).name}".`; err.style.display='block'; return; }
+    const vals={name, icp, url, position:document.getElementById('pPos').value.trim(),
+      company:document.getElementById('pComp').value.trim(), status:document.getElementById('pStatus').value,
+      note:document.getElementById('pNote').value.trim()};
+    if(pid){
+      const p=S.prospects.find(x=>x.id===pid);
+      const stChanged=p.status!==vals.status;
+      if(stChanged) p.history.push({ts:Date.now(),user:session.name,from:p.status,to:vals.status});
+      Object.assign(p, vals, {updatedAt:Date.now()});
+      addActivity(stChanged?'status':'edit', stChanged
+        ? `${p.name}: status → ${STATUSES[vals.status]}`
+        : `Updated details for ${p.name} in ${listById(listId).name}`);
+      toast(`<b>${esc(p.name)}</b> updated`);
+    } else {
+      const now=Date.now();
+      S.prospects.push({id:uid(), listId, ...vals, addedAt:now, updatedAt:now, archived:false,
+        history:[{ts:now,user:session.name,from:null,to:vals.status}]});
+      addActivity('add', `Added ${vals.name} to ${listById(listId).name}`);
+      const l=listById(listId), today=countToday(listId);
+      toast(today>=l.dailyTarget ? `<b>${esc(vals.name)}</b> added — daily target of ${l.dailyTarget} reached 🎉`
+        : `<b>${esc(vals.name)}</b> added — ${l.dailyTarget-today} to go today`);
+    }
+    persist(); closeModal(); render(); return;
+  }
+
+  if(t.id==='lSave'){
+    const err=document.getElementById('lErr');
+    const name=document.getElementById('lName').value.trim();
+    const icp=document.getElementById('lIcp').value.trim();
+    const target=Math.max(1, parseInt(document.getElementById('lTarget').value)||15);
+    if(!name||!icp){ err.textContent='List name and ICP category are required.'; err.style.display='block'; return; }
+    const lid=t.dataset.lid;
+    if(lid){ const l=listById(lid); Object.assign(l,{name,icp,dailyTarget:target});
+      addActivity('list', `Updated list settings for ${name}`); }
+    else { const id=uid(); S.lists.push({id,name,icp,dailyTarget:target,createdAt:Date.now(),archived:false});
+      addActivity('list', `Created list ${name}`); view='list:'+id; }
+    persist(); closeModal(); render(); toast(`List <b>${esc(name)}</b> saved`); return;
+  }
+
+  if(t.id==='lArchive'){
+    const l=listById(t.dataset.lid); l.archived=!l.archived;
+    addActivity('list', `${l.archived?'Archived':'Restored'} list ${l.name}`);
+    if(l.archived) view='dashboard';
+    persist(); closeModal(); render(); toast(`List <b>${esc(l.name)}</b> ${l.archived?'archived':'restored'}`); return;
+  }
+});
+
+/* status dropdown + filters */
+document.addEventListener('change', e=>{
+  const st=e.target.closest('[data-status-for]');
+  if(st){
+    const p=S.prospects.find(x=>x.id===st.dataset.statusFor); if(!p) return;
+    const from=p.status; p.status=st.value; p.updatedAt=Date.now();
+    p.history.push({ts:Date.now(),user:session.name,from,to:st.value});
+    addActivity('status', `${p.name}: ${STATUSES[from]} → ${STATUSES[st.value]}`);
+    persist(); render(); toast(`<b>${esc(p.name)}</b> → ${STATUSES[st.value]}`); return;
+  }
+  const f=e.target.closest('[data-f]');
+  if(f && view.startsWith('list:')){
+    const lf=filters[view.slice(5)];
+    lf[f.dataset.f] = f.type==='checkbox' ? f.checked : f.value;
+    render();
+    if(f.dataset.f==='q'){ const inp=document.querySelector('[data-f="q"]'); inp.focus(); inp.setSelectionRange(inp.value.length,inp.value.length); }
+    return;
+  }
+});
+document.addEventListener('input', e=>{
+  const f=e.target.closest('[data-f="q"]');
+  if(f && view.startsWith('list:')){
+    filters[view.slice(5)].q=f.value;
+    clearTimeout(window._qh); window._qh=setTimeout(()=>{ render();
+      const inp=document.querySelector('[data-f="q"]'); if(inp){inp.focus(); inp.setSelectionRange(inp.value.length,inp.value.length);} },250);
+  }
+  const aq=e.target.closest('[data-actq]');
+  if(aq){ filters._act=aq.value; clearTimeout(window._ah); window._ah=setTimeout(()=>{ render();
+    const inp=document.querySelector('[data-actq]'); if(inp){inp.focus(); inp.setSelectionRange(inp.value.length,inp.value.length);} },250); }
+});
+document.getElementById('overlay').addEventListener('click', e=>{ if(e.target.id==='overlay') closeModal(); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal();
+  if(e.key==='Enter' && e.target.closest('.role-opt')) e.target.closest('.role-opt').click(); });
+
+/* ================= TODAY'S DIGEST (client notification) ================= */
+function todayDigest(){
+  const k = todayKey();
+  const perList = activeLists().map(l=>{
+    const ps = listProspects(l.id);
+    const added = ps.filter(p=>dayKey(p.addedAt)===k).length;
+    const connected = ps.filter(p=>(p.history||[]).some(h=>h.to==='CONNECTED' && dayKey(h.ts)===k)).length;
+    const responded = ps.filter(p=>(p.history||[]).some(h=>h.to==='RESPONDED' && dayKey(h.ts)===k)).length;
+    return {list:l, added, connected, responded};
+  });
+  return {
+    perList,
+    added: perList.reduce((a,x)=>a+x.added,0),
+    connected: perList.reduce((a,x)=>a+x.connected,0),
+    responded: perList.reduce((a,x)=>a+x.responded,0)
+  };
+}
+function digestModal(){
+  const d = todayDigest();
+  const dateStr = new Date().toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'});
+  const rows = d.perList.map(x=>`
+    <tr><td style="font-weight:600;color:var(--ink)">${esc(x.list.name)}</td>
+    <td style="text-align:center;font-variant-numeric:tabular-nums">${x.added} <span style="color:var(--muted);font-size:11px">/ ${x.list.dailyTarget}</span></td>
+    <td style="text-align:center;font-variant-numeric:tabular-nums">${x.connected}</td></tr>`).join('');
+  openModal(`
+  <div class="modal-head"><h2>Today's snapshot</h2><button class="close-x" data-close aria-label="Close">×</button></div>
+  <div class="modal-body">
+    <p style="font-size:12.5px;color:var(--muted);margin-bottom:16px">${dateStr} · live figures from the outreach team</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px">
+      <div class="card" style="padding:16px;text-align:center;box-shadow:none">
+        <div style="font-family:'Archivo';font-size:34px;font-weight:800;color:var(--gold-deep);font-variant-numeric:tabular-nums">${d.added}</div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Prospects added today</div></div>
+      <div class="card" style="padding:16px;text-align:center;box-shadow:none">
+        <div style="font-family:'Archivo';font-size:34px;font-weight:800;color:var(--green);font-variant-numeric:tabular-nums">${d.connected}</div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Connected today</div></div>
+    </div>
+    ${d.responded?`<p style="font-size:12.5px;color:var(--blue);font-weight:600;margin-bottom:14px">Plus ${d.responded} prospect${d.responded===1?'':'s'} responded today.</p>`:''}
+    <div class="tbl-wrap" style="border:1px solid var(--line);border-radius:10px">
+      <table><thead><tr><th>List</th><th style="text-align:center">Added today</th><th style="text-align:center">Connected today</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+  </div>
+  <div class="modal-foot"><button class="btn btn-gold btn-sm" style="width:auto" data-close>Go to dashboard</button></div>`);
+}
+
+/* ================= PORTAL ENTRY ================= */
+function enterPortal(portal){
+  session = portal==='team'
+    ? {name:'CrossCore VA', role:'admin', portal:'team'}
+    : {name:'Dan Soviero', role:'viewer', portal:'client'};
+  document.getElementById('userName').textContent = portal==='team' ? 'CrossCore VA' : 'Client Portal';
+  document.getElementById('userRole').textContent = portal==='team' ? 'Full workspace' : 'View only · Dan Soviero';
+  document.getElementById('userAvatar').textContent = portal==='team' ? 'C' : 'D';
+  document.getElementById('loginView').style.display='none';
+  document.getElementById('appShell').classList.add('on');
+  view='dashboard'; render();
+  if(portal==='client') setTimeout(digestModal, 350);
+  if(memoryOnly) toast('Storage unavailable — changes will not persist after this session');
+}
+document.querySelectorAll('[data-portal]').forEach(b=>b.addEventListener('click', ()=>enterPortal(b.dataset.portal)));
+document.getElementById('signOut').addEventListener('click', ()=>{
+  session=null;
+  document.getElementById('appShell').classList.remove('on');
+  document.getElementById('loginView').style.display='flex';
+});
+
+/* ================= BOOT ================= */
+(async function boot(){
+  const saved = await loadState();
+  if(saved){ S=saved; }
+  else { S=freshState(); await persist(); }
+})();
+</script>
+</body>
+</html>
