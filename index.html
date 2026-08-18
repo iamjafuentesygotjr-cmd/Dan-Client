@@ -293,8 +293,9 @@ const KEY = 'ccopc-prospect-desk-v1';
    3. Paste your Project URL and anon public key below, save, re-upload.
    Leave both empty ('') to use workspace/browser storage instead.
    ============================================================ */
-const SUPA_URL = '';   // e.g. 'https://abcdefgh.supabase.co'
-const SUPA_KEY = '';   // anon public key from Project Settings → API
+const FIREBASE_DB_URL = 'https://crosscore-outreach-default-rtdb.asia-southeast1.firebasedatabase.app';
+const SUPA_URL = FIREBASE_DB_URL;   /* kept so the rest of the app works unchanged */
+const SUPA_KEY = FIREBASE_DB_URL ? 'fb' : '';
 const STATUSES = {
   NOT_CONNECTED:'Not Connected',
   REQUEST_SENT:'Request Sent / Pending',
@@ -392,21 +393,20 @@ let backendType = 'memory';
 })();
 memoryOnly = (backendType==='memory');
 
-/* ---- cloud database helpers (Supabase REST, single-row JSON document) ---- */
-const supaHeaders = () => ({'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json'});
+/* ---- cloud database helpers (Firebase Realtime Database REST) ---- */
+const fbUrl = p => FIREBASE_DB_URL.replace(/\/+$/,'') + '/prospect_desk' + (p||'') + '.json';
 async function supaLoad(revOnly=false){
-  const sel = revOnly ? 'rev' : 'rev,data';
-  const res = await fetch(SUPA_URL+'/rest/v1/prospect_desk?id=eq.1&select='+sel, {headers:supaHeaders()});
+  const res = await fetch(fbUrl(revOnly?'/rev':''), {cache:'no-store'});
   if(!res.ok) throw new Error('cloud read '+res.status);
-  const rows = await res.json();
-  if(!rows.length) return null;
-  return revOnly ? {rev:rows[0].rev} : rows[0].data;
+  const v = await res.json();
+  if(v===null || v===undefined) return null;
+  return revOnly ? {rev:(typeof v==='number'? v : (v.rev||0))} : v;
 }
 async function supaSave(state){
-  const res = await fetch(SUPA_URL+'/rest/v1/prospect_desk', {
-    method:'POST',
-    headers:{...supaHeaders(),'Prefer':'resolution=merge-duplicates'},
-    body:JSON.stringify([{id:1, rev:state.rev, data:state, saved_at:new Date().toISOString()}])
+  const res = await fetch(fbUrl(), {
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(state)
   });
   if(!res.ok) throw new Error('cloud write '+res.status);
 }
