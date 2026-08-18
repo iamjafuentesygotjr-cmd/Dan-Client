@@ -558,7 +558,8 @@ function renderDashboard(){
   <div class="card" style="display:flex;align-items:center;gap:18px;padding:15px 20px;margin-bottom:20px;border-left:4px solid var(--gold);flex-wrap:wrap">
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style="flex:none"><path d="M9 2a4.5 4.5 0 00-4.5 4.5c0 3-1.3 4-1.3 4h11.6s-1.3-1-1.3-4A4.5 4.5 0 009 2zM7.5 13.5a1.5 1.5 0 003 0" stroke="var(--gold-deep)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
     <div style="flex:1;min-width:220px;font-size:13px"><b style="color:var(--ink)">Today so far:</b>
-      <b style="color:var(--gold-deep)">${d.added}</b> prospect${d.added===1?'':'s'} added ·
+      <b style="color:var(--gold-deep)">${d.added}</b> added ·
+      <b style="color:var(--amber)">${d.sent}</b> request${d.sent===1?'':'s'} sent ·
       <b style="color:var(--green)">${d.connected}</b> connected${d.responded?` · <b style="color:var(--blue)">${d.responded}</b> responded`:''}</div>
     <button class="btn btn-ghost btn-sm" data-digest>Details</button>
   </div>`})():''}
@@ -959,13 +960,15 @@ function todayDigest(){
   const perList = activeLists().map(l=>{
     const ps = listProspects(l.id);
     const added = ps.filter(p=>dayKey(p.addedAt)===k).length;
+    const sent = ps.filter(p=>(p.history||[]).some(h=>h.to==='REQUEST_SENT' && dayKey(h.ts)===k)).length;
     const connected = ps.filter(p=>(p.history||[]).some(h=>h.to==='CONNECTED' && dayKey(h.ts)===k)).length;
     const responded = ps.filter(p=>(p.history||[]).some(h=>h.to==='RESPONDED' && dayKey(h.ts)===k)).length;
-    return {list:l, added, connected, responded};
+    return {list:l, added, sent, connected, responded};
   });
   return {
     perList,
     added: perList.reduce((a,x)=>a+x.added,0),
+    sent: perList.reduce((a,x)=>a+x.sent,0),
     connected: perList.reduce((a,x)=>a+x.connected,0),
     responded: perList.reduce((a,x)=>a+x.responded,0)
   };
@@ -976,6 +979,7 @@ function digestModal(){
   const rows = d.perList.map(x=>`
     <tr><td style="font-weight:600;color:var(--ink)">${esc(x.list.name)}</td>
     <td style="text-align:center;font-variant-numeric:tabular-nums">${x.added} <span style="color:var(--muted);font-size:11px">/ ${x.list.dailyTarget}</span></td>
+    <td style="text-align:center;font-variant-numeric:tabular-nums">${x.sent}</td>
     <td style="text-align:center;font-variant-numeric:tabular-nums">${x.connected}</td></tr>`).join('');
   openModal(`
   <div class="modal-head"><h2>${sinceSnap?'Welcome back':'Today\u2019s snapshot'}</h2><button class="close-x" data-close aria-label="Close">×</button></div>
@@ -996,17 +1000,20 @@ function digestModal(){
     ${sinceSnap.resp?`<p style="font-size:12.5px;color:var(--blue);font-weight:600;margin:-8px 0 16px">Plus ${sinceSnap.resp} prospect${sinceSnap.resp===1?'':'s'} responded since your last visit.</p>`:''}
     <div style="border-top:1px solid var(--line-soft);margin-bottom:14px"></div>`:''}
     <p style="font-size:12.5px;color:var(--muted);margin-bottom:16px">${dateStr} · live figures from the outreach team</p>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px">
-      <div class="card" style="padding:16px;text-align:center;box-shadow:none">
-        <div style="font-family:'Archivo';font-size:34px;font-weight:800;color:var(--gold-deep);font-variant-numeric:tabular-nums">${d.added}</div>
-        <div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Prospects added today</div></div>
-      <div class="card" style="padding:16px;text-align:center;box-shadow:none">
-        <div style="font-family:'Archivo';font-size:34px;font-weight:800;color:var(--green);font-variant-numeric:tabular-nums">${d.connected}</div>
-        <div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Connected today</div></div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px">
+      <div class="card" style="padding:14px 8px;text-align:center;box-shadow:none">
+        <div style="font-family:'Archivo';font-size:29px;font-weight:800;color:var(--gold-deep);font-variant-numeric:tabular-nums">${d.added}</div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Added today</div></div>
+      <div class="card" style="padding:14px 8px;text-align:center;box-shadow:none">
+        <div style="font-family:'Archivo';font-size:29px;font-weight:800;color:var(--amber);font-variant-numeric:tabular-nums">${d.sent}</div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Requests sent today</div></div>
+      <div class="card" style="padding:14px 8px;text-align:center;box-shadow:none">
+        <div style="font-family:'Archivo';font-size:29px;font-weight:800;color:var(--green);font-variant-numeric:tabular-nums">${d.connected}</div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Connected today</div></div>
     </div>
     ${d.responded?`<p style="font-size:12.5px;color:var(--blue);font-weight:600;margin-bottom:14px">Plus ${d.responded} prospect${d.responded===1?'':'s'} responded today.</p>`:''}
     <div class="tbl-wrap" style="border:1px solid var(--line);border-radius:10px">
-      <table><thead><tr><th>List</th><th style="text-align:center">Added today</th><th style="text-align:center">Connected today</th></tr></thead>
+      <table><thead><tr><th>List</th><th style="text-align:center">Added</th><th style="text-align:center">Sent</th><th style="text-align:center">Connected</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
   </div>
   <div class="modal-foot"><button class="btn btn-gold btn-sm" style="width:auto" data-close>Go to dashboard</button></div>`);
