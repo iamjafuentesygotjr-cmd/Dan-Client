@@ -363,18 +363,55 @@ function freshState(){
   };
 }
 
+/* ---- persistent storage: Claude workspace storage → browser localStorage (when hosted/downloaded) → memory ---- */
+let backendType = 'memory';
+(function detectBackend(){
+  try{ if(window.storage && window.storage.get && window.storage.set){ backendType='claude'; return; } }catch(e){}
+  try{
+    const t='__ccopc_test__';
+    window.localStorage.setItem(t,'1'); window.localStorage.removeItem(t);
+    backendType='local';
+  }catch(e){ backendType='memory'; }
+})();
+memoryOnly = (backendType==='memory');
+
 async function persist(){
-  if(memoryOnly) return;
-  try{ await window.storage.set(KEY, JSON.stringify(S)); }
-  catch(e){ memoryOnly = true; }
+  S.rev = (S.rev||0)+1;
+  S.savedAt = Date.now();
+  const json = JSON.stringify(S);
+  try{
+    if(backendType==='claude'){ await window.storage.set(KEY, json); }
+    else if(backendType==='local'){ window.localStorage.setItem(KEY, json); }
+  }catch(e){
+    if(backendType==='claude'){
+      /* fall back to browser storage if workspace storage rejects */
+      try{ window.localStorage.setItem(KEY, json); backendType='local'; }
+      catch(e2){ backendType='memory'; memoryOnly=true; toast('⚠ Storage unavailable — changes will be lost on refresh'); }
+    } else { backendType='memory'; memoryOnly=true; toast('⚠ Storage unavailable — changes will be lost on refresh'); }
+  }
 }
 async function loadState(){
   try{
-    const r = await window.storage.get(KEY);
-    if(r && r.value) return JSON.parse(r.value);
-  }catch(e){ /* first run or storage unavailable */ }
+    if(backendType==='claude'){
+      const r = await window.storage.get(KEY);
+      if(r && r.value) return JSON.parse(r.value);
+    } else if(backendType==='local'){
+      const v = window.localStorage.getItem(KEY);
+      if(v) return JSON.parse(v);
+    }
+  }catch(e){ /* first run or unreadable */ }
   return null;
 }
+/* live sync: if another tab/portal saved a newer revision, reload and re-render */
+async function refreshFromStorage(){
+  const fresh = await loadState();
+  if(fresh && S && (fresh.rev||0) > (S.rev||0)){
+    S = fresh;
+    if(session){ render(); toast('Synced — latest updates loaded'); }
+  }
+}
+window.addEventListener('storage', e=>{ if(e.key===KEY) refreshFromStorage(); });
+setInterval(refreshFromStorage, 15000);
 
 /* ================= HELPERS ================= */
 const listById = id => S.lists.find(l=>l.id===id);
@@ -907,6 +944,16 @@ document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal();
   if(e.key==='Enter' && e.target.closest('.role-opt')) e.target.closest('.role-opt').click(); });
 
 /* ================= TODAY'S DIGEST (client notification) ================= */
+let sinceSnap = null; /* computed at client portal entry, before the visit is recorded */
+function sinceStats(ts){
+  if(!ts) return null;
+  const ps = S.prospects.filter(p=>!p.archived);
+  const newAdds = ps.filter(p=>p.addedAt>ts).length;
+  const sent = ps.filter(p=>(p.history||[]).some(h=>h.to==='REQUEST_SENT' && h.ts>ts)).length;
+  const conn = ps.filter(p=>(p.history||[]).some(h=>h.to==='CONNECTED' && h.ts>ts)).length;
+  const resp = ps.filter(p=>(p.history||[]).some(h=>h.to==='RESPONDED' && h.ts>ts)).length;
+  return {ts, newAdds, sent, conn, resp};
+}
 function todayDigest(){
   const k = todayKey();
   const perList = activeLists().map(l=>{
@@ -931,8 +978,23 @@ function digestModal(){
     <td style="text-align:center;font-variant-numeric:tabular-nums">${x.added} <span style="color:var(--muted);font-size:11px">/ ${x.list.dailyTarget}</span></td>
     <td style="text-align:center;font-variant-numeric:tabular-nums">${x.connected}</td></tr>`).join('');
   openModal(`
-  <div class="modal-head"><h2>Today's snapshot</h2><button class="close-x" data-close aria-label="Close">×</button></div>
+  <div class="modal-head"><h2>${sinceSnap?'Welcome back':'Today\u2019s snapshot'}</h2><button class="close-x" data-close aria-label="Close">×</button></div>
   <div class="modal-body">
+    ${sinceSnap?`
+    <p style="font-size:12.5px;color:var(--muted);margin-bottom:12px">Since your last visit (${fmtDT(sinceSnap.ts)}):</p>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px">
+      <div class="card" style="padding:12px;text-align:center;box-shadow:none">
+        <div style="font-family:'Archivo';font-size:26px;font-weight:800;color:var(--gold-deep);font-variant-numeric:tabular-nums">+${sinceSnap.newAdds}</div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">New prospects</div></div>
+      <div class="card" style="padding:12px;text-align:center;box-shadow:none">
+        <div style="font-family:'Archivo';font-size:26px;font-weight:800;color:var(--amber);font-variant-numeric:tabular-nums">${sinceSnap.sent}</div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">Requests sent</div></div>
+      <div class="card" style="padding:12px;text-align:center;box-shadow:none">
+        <div style="font-family:'Archivo';font-size:26px;font-weight:800;color:var(--green);font-variant-numeric:tabular-nums">${sinceSnap.conn}</div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">Newly connected</div></div>
+    </div>
+    ${sinceSnap.resp?`<p style="font-size:12.5px;color:var(--blue);font-weight:600;margin:-8px 0 16px">Plus ${sinceSnap.resp} prospect${sinceSnap.resp===1?'':'s'} responded since your last visit.</p>`:''}
+    <div style="border-top:1px solid var(--line-soft);margin-bottom:14px"></div>`:''}
     <p style="font-size:12.5px;color:var(--muted);margin-bottom:16px">${dateStr} · live figures from the outreach team</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px">
       <div class="card" style="padding:16px;text-align:center;box-shadow:none">
@@ -961,7 +1023,14 @@ function enterPortal(portal){
   document.getElementById('loginView').style.display='none';
   document.getElementById('appShell').classList.add('on');
   view='dashboard'; render();
-  if(portal==='client') setTimeout(digestModal, 350);
+  if(portal==='client'){
+    sinceSnap = sinceStats(S.lastClientVisit);
+    S.lastClientVisit = Date.now();
+    persist();
+    setTimeout(digestModal, 350);
+  } else {
+    sinceSnap = null;
+  }
   if(memoryOnly) toast('Storage unavailable — changes will not persist after this session');
 }
 document.querySelectorAll('[data-portal]').forEach(b=>b.addEventListener('click', ()=>enterPortal(b.dataset.portal)));
