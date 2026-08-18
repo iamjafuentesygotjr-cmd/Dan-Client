@@ -264,6 +264,7 @@ td .p-pos{font-size:11.5px;color:var(--muted);max-width:260px;overflow:hidden;te
     </div>
     <nav class="nav" id="sideNav"></nav>
     <div class="side-foot">
+      <div id="syncStat" style="font-size:11px;color:#8F8776;margin-bottom:10px"></div>
       <div class="side-user"><div class="avatar" id="userAvatar">A</div><div><b id="userName">—</b><span id="userRole">—</span></div></div>
       <button class="signout" id="signOut">Switch portal</button>
     </div>
@@ -363,7 +364,10 @@ function freshState(){
   };
 }
 
-/* ---- persistent storage: Claude workspace storage → browser localStorage (when hosted/downloaded) → memory ---- */
+/* ---- persistent storage ----
+   Primary: SHARED workspace storage (one centralized database — every user of this
+   link reads and writes the same records). Falls back to browser localStorage when
+   the file is opened outside Claude, then to memory as a last resort. */
 let backendType = 'memory';
 (function detectBackend(){
   try{ if(window.storage && window.storage.get && window.storage.set){ backendType='claude'; return; } }catch(e){}
@@ -376,25 +380,42 @@ let backendType = 'memory';
 memoryOnly = (backendType==='memory');
 
 async function persist(){
+  /* advance past whatever revision is already in the centralized store so a
+     portal that loaded earlier can never tie with or roll back another's save */
+  if(backendType==='claude'){
+    try{ const remote = await readShared(); if(remote && (remote.rev||0) >= (S.rev||0)) S.rev = remote.rev; }catch(e){}
+  }
   S.rev = (S.rev||0)+1;
   S.savedAt = Date.now();
+  S.savedBy = session ? session.name : 'System';
   const json = JSON.stringify(S);
   try{
-    if(backendType==='claude'){ await window.storage.set(KEY, json); }
+    if(backendType==='claude'){ await window.storage.set(KEY, json, true); } /* shared=true → centralized */
     else if(backendType==='local'){ window.localStorage.setItem(KEY, json); }
+    updateSyncStat();
   }catch(e){
     if(backendType==='claude'){
-      /* fall back to browser storage if workspace storage rejects */
-      try{ window.localStorage.setItem(KEY, json); backendType='local'; }
+      try{ window.localStorage.setItem(KEY, json); backendType='local'; updateSyncStat(); }
       catch(e2){ backendType='memory'; memoryOnly=true; toast('⚠ Storage unavailable — changes will be lost on refresh'); }
     } else { backendType='memory'; memoryOnly=true; toast('⚠ Storage unavailable — changes will be lost on refresh'); }
   }
 }
+async function readShared(){
+  try{ const r = await window.storage.get(KEY, true); if(r && r.value) return JSON.parse(r.value); }catch(e){}
+  return null;
+}
+async function readLegacyPersonal(){
+  try{ const r = await window.storage.get(KEY); if(r && r.value) return JSON.parse(r.value); }catch(e){}
+  return null;
+}
 async function loadState(){
   try{
     if(backendType==='claude'){
-      const r = await window.storage.get(KEY);
-      if(r && r.value) return JSON.parse(r.value);
+      /* centralized copy first; migrate any older personal copy forward */
+      const shared = await readShared();
+      const legacy = await readLegacyPersonal();
+      if(shared && legacy) return ((legacy.rev||0) > (shared.rev||0)) ? legacy : shared;
+      return shared || legacy;
     } else if(backendType==='local'){
       const v = window.localStorage.getItem(KEY);
       if(v) return JSON.parse(v);
@@ -402,16 +423,41 @@ async function loadState(){
   }catch(e){ /* first run or unreadable */ }
   return null;
 }
-/* live sync: if another tab/portal saved a newer revision, reload and re-render */
+
+/* ---- live sync: poll the centralized store and adopt any newer revision ---- */
+let lastSyncAt = null;
+function typingNow(){
+  const a=document.activeElement;
+  return a && (a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.tagName==='SELECT');
+}
 async function refreshFromStorage(){
-  const fresh = await loadState();
-  if(fresh && S && (fresh.rev||0) > (S.rev||0)){
-    S = fresh;
-    if(session){ render(); toast('Synced — latest updates loaded'); }
-  }
+  if(backendType!=='claude' && backendType!=='local') return;
+  try{
+    const fresh = backendType==='claude' ? await readShared()
+      : (()=>{ const v=window.localStorage.getItem(KEY); return v?JSON.parse(v):null; })();
+    lastSyncAt = Date.now();
+    updateSyncStat();
+    if(fresh && S && (fresh.rev||0) > (S.rev||0)){
+      /* don't yank the UI out from under an open form or active typing — retry on next poll */
+      if(document.getElementById('overlay').classList.contains('on') || typingNow()) return;
+      S = fresh;
+      if(session){ render(); toast('Synced — latest updates from ' + esc(fresh.savedBy||'the team') + ' loaded'); }
+    }
+  }catch(e){ /* transient read failure — next poll retries automatically */ }
+}
+function updateSyncStat(){
+  const el=document.getElementById('syncStat'); if(!el) return;
+  const t = lastSyncAt||S&&S.savedAt;
+  el.innerHTML = backendType==='claude'
+    ? `<span style="color:var(--gold)">●</span> Shared database${t?' · checked '+new Date(t).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}):''}`
+    : backendType==='local'
+    ? `<span style="color:#E8A13C">●</span> This-device storage only`
+    : `<span style="color:#D06">●</span> Memory only — not saved`;
 }
 window.addEventListener('storage', e=>{ if(e.key===KEY) refreshFromStorage(); });
-setInterval(refreshFromStorage, 15000);
+setInterval(refreshFromStorage, 5000);
+window.addEventListener('focus', refreshFromStorage);
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') refreshFromStorage(); });
 
 /* ================= HELPERS ================= */
 const listById = id => S.lists.find(l=>l.id===id);
@@ -1049,10 +1095,22 @@ document.getElementById('signOut').addEventListener('click', ()=>{
 
 /* ================= BOOT ================= */
 (async function boot(){
-  const saved = await loadState();
-  if(saved){ S=saved; }
-  else { S=freshState(); }
-  if(applyGrowToro() || !saved) await persist();
+  let shared=null, adopted=null;
+  if(backendType==='claude'){
+    shared = await readShared();
+    const legacy = await readLegacyPersonal();
+    adopted = (shared && legacy) ? (((legacy.rev||0) > (shared.rev||0)) ? legacy : shared) : (shared || legacy);
+  } else {
+    adopted = await loadState();
+    shared = adopted;
+  }
+  let needWrite = false;
+  if(adopted){ S = adopted; if(adopted !== shared) needWrite = true; /* migrate newer legacy copy into shared */ }
+  else { S = freshState(); needWrite = true; }
+  if(applyGrowToro()) needWrite = true;
+  if(needWrite) await persist();
+  lastSyncAt = Date.now();
+  updateSyncStat();
 })();
 </script>
 </body>
