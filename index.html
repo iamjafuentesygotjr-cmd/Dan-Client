@@ -208,6 +208,49 @@ td .p-pos{font-size:11.5px;color:var(--muted);max-width:260px;overflow:hidden;te
 /* section titles */
 .sec-title{font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:26px 0 12px}
 
+/* ---------- lead notes ---------- */
+.note-cell{display:flex;align-items:flex-start;gap:5px;min-width:210px;max-width:330px}
+.note-txt{flex:1;font-size:12.6px;line-height:1.45;color:var(--body);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.note-txt.empty{color:var(--muted);font-style:italic}
+.note-tag{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--gold-deep);background:var(--gold-soft);border-radius:5px;padding:0 5px;margin-left:5px;vertical-align:1px}
+.note-acts{display:flex;gap:1px;flex:none}
+.note-ed{width:100%;min-width:250px}
+.note-ed textarea{width:100%;border:1.5px solid var(--gold-deep);border-radius:9px;padding:7px 9px;font-size:12.6px;line-height:1.45;resize:vertical;min-height:58px;background:#fff}
+.note-ed textarea:focus{outline:none}
+.note-ed .ne-row{display:flex;gap:6px;align-items:center;margin-top:6px}
+.note-ed .ne-hint{font-size:11px;color:var(--muted);margin-left:auto}
+.p-ctx{display:block;font-size:11px;color:var(--muted);margin-top:2px}
+/* default-note manager */
+.tpl-list{margin-top:14px;border-top:1px solid var(--line-soft);padding-top:12px;max-height:210px;overflow-y:auto}
+.tpl-row{display:flex;align-items:flex-start;gap:10px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:7px;background:#fff}
+.tpl-row.on{border-color:var(--gold-deep);background:var(--gold-soft)}
+.tpl-row .tr-t{flex:1;font-size:12.8px;line-height:1.45;color:var(--ink)}
+.tpl-row .tr-m{font-size:11px;color:var(--muted);margin-top:3px}
+.tok{display:inline-block;background:var(--ink);color:var(--gold);border-radius:5px;padding:1px 6px;font-size:11px;
+  font-family:ui-monospace,Menlo,monospace;margin-right:5px;cursor:pointer}
+.note-prev{background:var(--paper);border:1px solid var(--line-soft);border-radius:10px;padding:11px 13px;margin-top:10px}
+.note-prev b{display:block;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.gap-warn{background:var(--amber-soft);border:1px solid #F0DCA8;border-radius:11px;padding:11px 13px;margin-top:11px;font-size:12.6px;line-height:1.5;color:var(--ink)}
+.gap-warn b{font-weight:700}
+.gap-warn code{background:#fff;border:1px solid var(--line);border-radius:4px;padding:0 4px;font-family:ui-monospace,Menlo,monospace;font-size:11.5px}
+.confirm-box{background:var(--gold-soft);border:1px solid #EBD79A;border-radius:11px;padding:13px 15px;margin-top:12px}
+.confirm-box ul{margin:8px 0 0 18px;font-size:13px;line-height:1.65}
+/* ---------- notification settings ---------- */
+.ntf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:14px 0 4px}
+.ntf-f label{display:block;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.ntf-f input{width:100%;border:1.5px solid var(--line);border-radius:9px;padding:9px 11px;background:var(--paper)}
+.ntf-f input:focus{outline:none;border-color:var(--gold-deep);background:#fff}
+.ntf-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px}
+.ntf-log{margin-top:16px;border-top:1px solid var(--line-soft);padding-top:12px}
+.ntf-log table{width:100%;border-collapse:collapse;font-size:12.5px}
+.ntf-log td{padding:6px 8px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+.ntf-log tr:last-child td{border-bottom:none}
+.ntf-st{display:inline-block;padding:1px 8px;border-radius:7px;font-size:11px;font-weight:700}
+.ntf-sent{background:var(--green-soft);color:var(--green)}
+.ntf-skip{background:var(--gray-soft);color:var(--gray)}
+.ntf-fail{background:var(--red-soft);color:var(--red)}
+.ntf-queued{background:var(--amber-soft);color:var(--amber)}
 /* ---------- project chat ---------- */
 .chat-fab{position:fixed;right:22px;bottom:22px;z-index:40;width:56px;height:56px;border-radius:50%;
   background:var(--ink);border:none;display:none;align-items:center;justify-content:center;
@@ -502,7 +545,7 @@ function freshState(){
   return {
     lists, prospects,
     activity:[{id:uid(),ts:now,user:'System',action:'import',detail:`Imported ${prospects.length} prospects from "Tier 2 Community Leads DM Outreach" workbook`}],
-    messages:[], chatRead:{team:0,client:0},
+    messages:[], chatRead:{team:0,client:0}, notify:JSON.parse(JSON.stringify(NTF_DEFAULTS)),
     passcodes:{admin:'7421',member:'1500',viewer:'0000'},
     defaultCodes:true
   };
@@ -644,6 +687,7 @@ async function refreshFromStorage(){
     else { fresh = readLocal(); }
     lastSyncAt = Date.now();
     updateSyncStat();
+    flushNotices();
     if(fresh && S){
       const me = myPortal();
       const seenTs = chatMsgs().filter(m=>m.from!==me).reduce((a,m)=>Math.max(a,m.ts),0);
@@ -910,16 +954,18 @@ function renderList(listId){
   const trs = pageRows.map(p=>`
     <tr>
       <td><span class="p-name">${esc(p.name)}${p.archived?'<span class="badge-arch">Archived</span>':''}</span>
-          ${p.position?`<span class="p-pos" title="${esc(p.position)}">${esc(p.position)}</span>`:''}</td>
+          ${p.position?`<span class="p-pos" title="${esc(p.position)}">${esc(p.position)}</span>`:''}
+          ${p.context?`<span class="p-ctx" title="${esc(p.context)}">${esc(p.context)}</span>`:''}</td>
       <td>${esc(p.company)||'<span style="color:var(--muted)">—</span>'}</td>
       <td style="font-size:12px;color:var(--muted)">${esc(p.icp)}</td>
       <td style="white-space:nowrap">${p.url
           ?`<a class="link-btn" href="${esc(p.url)}" target="_blank" rel="noopener">Profile ↗</a>`
           :`<a class="link-btn" style="color:var(--muted)" href="${esc(findLink(p))}" target="_blank" rel="noopener" title="Search Google for this person's LinkedIn profile, then paste the URL via Edit">Find ↗</a>`}
-        ${canStatus?`<button class="icon-btn" data-copynote="${p.id}" title="Copy note: ${esc(connectNote(p.name))}" style="margin-left:6px;vertical-align:middle"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="3.5" y="3.5" width="7" height="7" rx="1.4" stroke="currentColor" stroke-width="1.3"/><path d="M8.5 3.5V2.4A1.4 1.4 0 007.1 1H2.4A1.4 1.4 0 001 2.4v4.7a1.4 1.4 0 001.4 1.4h1.1" stroke="currentColor" stroke-width="1.3"/></svg></button>`:''}</td>
+</td>
       <td>${canStatus
         ? `<select class="st-select st-${p.status}" data-status-for="${p.id}" aria-label="Status for ${esc(p.name)}">${Object.keys(STATUSES).map(k=>`<option value="${k}" ${k===p.status?'selected':''}>${STATUSES[k]}</option>`).join('')}</select>`
         : `<span class="pill st-${p.status}">${STATUSES[p.status]}</span>`}</td>
+      <td>${noteCell(p, canEdit)}</td>
       <td style="white-space:nowrap;font-size:12px;color:var(--muted)" title="Updated ${fmtDT(p.updatedAt)}">${fmtDate(p.addedAt)}</td>
       <td><div class="row-actions">
         ${canEdit?`<button class="icon-btn" data-edit="${p.id}" title="Edit"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M9.2 1.8l2 2L4.6 10.4l-2.6.6.6-2.6 6.6-6.6z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></button>`:''}
@@ -934,6 +980,7 @@ function renderList(listId){
       <div class="sub">${total} prospects · target ${l.dailyTarget} qualified adds per day</div></div>
     <div class="head-actions">
       ${can('add')?`<button class="btn btn-gold btn-sm" style="width:auto" data-addto="${l.id}">＋ Add prospect</button>`:''}
+      ${can('edit')?`<button class="btn btn-ghost btn-sm" data-notetpl="1">Default note</button>`:''}
       ${can('lists')?`<button class="btn btn-ghost btn-sm" data-editlist="${l.id}">List settings</button>`:''}
     </div>
   </div>
@@ -954,8 +1001,8 @@ function renderList(listId){
     <label style="font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-left:2px"><input type="checkbox" data-f="arch" ${f.arch?'checked':''}> Show archived</label>
   </div>
   <div class="card tbl-wrap">
-    <table><thead><tr><th>Prospect</th><th>Company</th><th>ICP</th><th>LinkedIn</th><th>Status</th><th>Added</th><th></th></tr></thead>
-    <tbody>${trs || `<tr><td colspan="7"><div class="empty"><b>No prospects match</b>Adjust your search or filters${can('add')?', or add a new prospect':''}.</div></td></tr>`}</tbody></table>
+    <table><thead><tr><th>Prospect</th><th>Company</th><th>ICP</th><th>LinkedIn</th><th>Status</th><th>Notes</th><th>Added</th><th></th></tr></thead>
+    <tbody>${trs || `<tr><td colspan="8"><div class="empty"><b>No prospects match</b>Adjust your search or filters${can('add')?', or add a new prospect':''}.</div></td></tr>`}</tbody></table>
   </div>
   <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;flex-wrap:wrap">
     <div class="count-note" style="margin:0">Showing ${rows.length?((f.pg-1)*PER+1)+'–'+Math.min(f.pg*PER,rows.length):'0'} of ${rows.length} matching · ${total} total in list</div>
@@ -964,7 +1011,7 @@ function renderList(listId){
       <span style="font-size:12.5px;color:var(--muted)">Page ${f.pg} / ${pages}</span>
       <button class="btn btn-ghost btn-sm" data-pg="next" ${f.pg>=pages?'disabled':''}>Next ›</button></div>`:''}
   </div>
-  <div class="count-note">“Find ↗” opens a LinkedIn profile search for prospects without a saved link — once the VA finds the profile, paste the URL via Edit and it becomes “Profile ↗”. The copy icon copies the personalized note: “Hey [First Name]! I’d love to connect.”</div>`;
+  <div class="count-note">“Find ↗” opens a LinkedIn profile search for prospects without a saved link — paste the URL via Edit and it becomes “Profile ↗”. In the Notes column the copy icon copies that lead’s full note, ready to paste into LinkedIn; the pencil edits it. A note the VA edits is tagged <b>Custom</b> and is never touched by a later default-note rollout.</div>`;
 }
 
 /* ================= ACTIVITY ================= */
@@ -981,6 +1028,53 @@ function renderActivity(){
 }
 
 /* ================= INTEGRATION ================= */
+function renderNotifySettings(){
+  if(!session || session.role!=='admin') return '';
+  ensureNotify();
+  const n = S.notify, R = n.recipients;
+  const st = n.enabled ? (n.url ? '<span class="tag tag-ok">Live</span>' : '<span class="tag">Needs a relay URL</span>')
+                       : '<span class="tag">Off</span>';
+  const rows = (n.log||[]).slice(0,8).map(l=>`<tr>
+      <td style="white-space:nowrap;color:var(--muted)">${esc(fmtDT(l.ts))}</td>
+      <td><span class="ntf-st ntf-${esc(l.status)}">${esc(l.status)}</span></td>
+      <td>${esc((R[l.to]&&R[l.to].name)||l.to)}</td>
+      <td style="color:var(--muted)">${esc(l.detail)}</td></tr>`).join('');
+  const queued = (n.queue||[]).length;
+  return `
+  <div class="card int-card" style="margin-top:18px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+      <h3 style="margin:0">Chat notifications</h3>${st}</div>
+    <p>Every new chat message is handed to your relay, which sends the email. The relay holds the
+    mail credentials and its own copy of the recipient list, so nothing sensitive sits in this file.
+    Alerts are skipped while the other person already has the chat open, and at most one is sent
+    per ${esc(String(n.quietSeconds||60))} seconds — it carries everything they have not read yet.</p>
+    <div class="ntf-grid">
+      <div class="ntf-f"><label>Relay URL</label>
+        <input id="ntfUrl" type="url" placeholder="https://chat-notify.yourname.workers.dev" value="${esc(n.url||'')}"></div>
+      <div class="ntf-f"><label>Shared token (optional)</label>
+        <input id="ntfToken" type="text" placeholder="matches DESK_TOKEN in the worker" value="${esc(n.token||'')}"></div>
+      <div class="ntf-f"><label>Address of this app</label>
+        <input id="ntfApp" type="url" placeholder="https://prospects.crosscore.com/" value="${esc(n.appUrl||'')}"></div>
+      <div class="ntf-f"><label>Notify ${esc(R.team.name||'the VA')} at</label>
+        <input id="ntfTeamEmail" type="email" value="${esc(R.team.email||'')}"></div>
+      <div class="ntf-f"><label>Notify ${esc(R.client.name||'the client')} at</label>
+        <input id="ntfClientEmail" type="email" value="${esc(R.client.email||'')}"></div>
+    </div>
+    <div class="ntf-row">
+      <label style="display:flex;align-items:center;gap:7px;font-size:13px">
+        <input type="checkbox" id="ntfOn" ${n.enabled?'checked':''}> <b>Send notifications</b></label>
+      <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted)">
+        <input type="checkbox" id="ntfSms" ${R.team.smsEnabled?'checked':''}> Also SMS ${esc(R.team.sms||'')} (needs an SMS provider in the relay)</label>
+      <button class="btn btn-gold btn-sm" id="ntfSave" style="width:auto;margin-left:auto">Save</button>
+      <button class="btn btn-sm" id="ntfTest" style="width:auto">Send test</button>
+    </div>
+    ${!n.appUrl?`<p style="font-size:12.5px;color:var(--amber);margin-top:10px">Add the address this app is hosted at, otherwise the emails arrive without a link back to the conversation.</p>`:''}
+    ${queued?`<p style="font-size:12.5px;color:var(--amber);margin-top:10px">${queued} alert${queued===1?'':'s'} waiting to retry — the relay was unreachable.</p>`:''}
+    ${rows?`<div class="ntf-log"><div style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Recent delivery attempts</div>
+      <table>${rows}</table></div>`:''}
+  </div>`;
+}
+
 function renderIntegration(){
   return `
   <div class="page-head"><div><div class="eyebrow">Connection tracking</div><h1>LinkedIn synchronization</h1>
@@ -1024,7 +1118,8 @@ function renderIntegration(){
       <li>Re-upload the file to your host — the sidebar indicator will turn green: “Cloud database · live”</li>
     </ul>
     <p style="color:var(--muted);font-size:12px">Takes about 10 minutes, no coding beyond pasting two values. All existing data on the device that opens it first is migrated into the cloud automatically.</p>`:''}
-  </div>`;
+  </div>${renderNotifySettings()}
+  `;
 }
 
 /* ================= ACCESS ================= */
@@ -1055,6 +1150,111 @@ function renderAccess(){
 function openModal(html){ document.getElementById('modalBox').innerHTML = html; document.getElementById('overlay').classList.add('on'); }
 function closeModal(){ document.getElementById('overlay').classList.remove('on'); }
 
+let editingNote = null;      /* prospect id whose note is open for editing */
+let tplDraft = null;         /* unsaved default-note text */
+let tplConfirm = null;       /* {text, id} awaiting confirmation */
+
+const COPY_SVG = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="3.5" y="3.5" width="7" height="7" rx="1.4" stroke="currentColor" stroke-width="1.3"/><path d="M8.5 3.5V2.4A1.4 1.4 0 007.1 1H2.4A1.4 1.4 0 001 2.4v4.7a1.4 1.4 0 001.4 1.4h1.1" stroke="currentColor" stroke-width="1.3"/></svg>';
+const PEN_SVG  = '<svg width="12" height="12" viewBox="0 0 13 13" fill="none"><path d="M9.2 1.8l2 2L4.6 10.4l-2.6.6.6-2.6 6.6-6.6z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>';
+
+function noteCell(p, canEdit){
+  if(editingNote === p.id){
+    return `<div class="note-ed">
+      <textarea id="noteEd" rows="3" placeholder="Note for ${esc(p.name)}">${esc(leadNote(p))}</textarea>
+      <div class="ne-row">
+        <button class="btn btn-gold btn-sm" style="width:auto" data-savenote="${p.id}">Save</button>
+        <button class="btn btn-ghost btn-sm" data-cancelnote="1">Cancel</button>
+        ${p.noteCustom?`<button class="btn btn-ghost btn-sm" data-resetnote="${p.id}" title="Drop the custom note and follow the active default again">Reset</button>`:''}
+        <span class="ne-hint">Saving marks this lead custom</span>
+      </div></div>`;
+  }
+  const note = leadNote(p);
+  return `<div class="note-cell">
+    <div class="note-txt${note?'':' empty'}" title="${esc(note||'No note yet')}">${note?esc(note):'No note'}${p.noteCustom?'<span class="note-tag">Custom</span>':''}</div>
+    <div class="note-acts">
+      <button class="icon-btn" data-copynote="${p.id}" title="Copy this note" aria-label="Copy note for ${esc(p.name)}">${COPY_SVG}</button>
+      ${canEdit?`<button class="icon-btn" data-editnote="${p.id}" title="Edit note" aria-label="Edit note for ${esc(p.name)}">${PEN_SVG}</button>`:''}
+    </div></div>`;
+}
+function copyNote(p){
+  const note = leadNote(p);
+  if(!note){ toast('This lead has no note yet'); return; }
+  const done = ()=> toast(`Copied: <b>${esc(note.length>52?note.slice(0,52)+'…':note)}</b>`);
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(note).then(done).catch(()=>{ fallbackCopy(note); done(); });
+  } else { fallbackCopy(note); done(); }
+}
+
+/* ---------- default note manager ---------- */
+function noteTemplateModal(){
+  ensureNotes();
+  const act = activeTpl();
+  const draft = tplDraft !== null ? tplDraft : (act ? act.text : 'Hey {first}! Would love to connect.');
+  const sample = S.prospects.find(p=>!p.archived && isActiveListId(p.listId)) || {name:'Alex Reyes', company:'Bluestem Equity', position:'Partner'};
+  const c = rolloutCounts();
+
+  if(tplConfirm){
+    return openModal(`
+      <div class="modal-head"><h2>Apply this default note?</h2><button class="close-x" data-close>×</button></div>
+      <div class="modal-body">
+        <div class="note-prev"><b>New default</b>${esc(tplConfirm.text)}</div>
+        <div class="confirm-box">
+          <b>What will happen</b>
+          <ul>
+            <li><b>${c.update}</b> lead${c.update===1?'':'s'} will get the new note.</li>
+            <li><b>${c.custom}</b> lead${c.custom===1?'':'s'} with a custom note ${c.custom===1?'stays':'stay'} untouched.</li>
+            <li>Leads added from now on will use this note automatically.</li>
+          </ul>
+        </div>
+        ${gapWarning(tplConfirm.text)}
+        <p style="font-size:12.5px;color:var(--muted);margin-top:12px">Tokens are filled in per lead, so each note reads as if written for that person. This can be undone by activating the previous note again.</p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost btn-sm" data-tplback="1">Back</button>
+        <button class="btn btn-gold btn-sm" style="width:auto" data-tplapply="1">Apply to ${c.update} lead${c.update===1?'':'s'}</button>
+      </div>`);
+  }
+
+  const rows = (S.noteTemplates||[]).slice().sort((a,b)=>(b.activatedAt||b.createdAt)-(a.activatedAt||a.createdAt)).map(t=>`
+    <div class="tpl-row ${t.id===S.activeNoteId?'on':''}">
+      <div class="tr-t">${esc(t.text)}
+        <div class="tr-m">${t.id===S.activeNoteId?'Active now':'Saved'} · added ${esc(fmtDate(t.createdAt))}${t.activatedAt?` · last activated ${esc(fmtDate(t.activatedAt))}`:''}</div></div>
+      <div style="display:flex;gap:5px;flex:none">
+        ${t.id!==S.activeNoteId?`<button class="btn btn-ghost btn-sm" data-tpluse="${t.id}">Activate</button>`:''}
+        <button class="btn btn-ghost btn-sm" data-tpledit="${t.id}">Edit</button>
+        ${t.id!==S.activeNoteId?`<button class="icon-btn danger" data-tpldel="${t.id}" title="Delete">×</button>`:''}
+      </div></div>`).join('');
+
+  openModal(`
+  <div class="modal-head"><h2>Default note</h2><button class="close-x" data-close>×</button></div>
+  <div class="modal-body">
+    <p style="font-size:13px;color:var(--muted);margin-bottom:12px">The note every lead starts with. Write it once — the tokens fill in each lead's own details when the note is copied.</p>
+    <div class="field"><label>Note text</label>
+      <textarea id="tplText" rows="3" placeholder="Hey {first}! Would love to connect.">${esc(draft)}</textarea></div>
+    <div style="margin-top:8px">${NOTE_TOKENS.map(k=>`<span class="tok" data-tok="${esc(k.t)}" title="Insert ${esc(k.d)}">${esc(k.t)}</span>`).join('')}
+      <span style="font-size:11.5px;color:var(--muted)">click to insert</span></div>
+    <div class="note-prev"><b>Preview · ${esc(sample.name)}</b><span id="tplPrev">${esc(resolveNote(draft, sample))}</span></div>
+    <div id="tplGap">${gapWarning(draft)}</div>
+    <p style="font-size:12.5px;color:var(--muted);margin-top:10px">Right now <b>${c.update}</b> of ${c.total} leads follow the default; <b>${c.custom}</b> have a custom note and will be left alone.</p>
+    ${rows?`<div class="tpl-list">${rows}</div>`:''}
+  </div>
+  <div class="modal-foot">
+    <button class="btn btn-ghost btn-sm" data-close>Cancel</button>
+    <button class="btn btn-gold btn-sm" style="width:auto" data-tplsave="1">Save &amp; activate…</button>
+  </div>`);
+
+  const ta = document.getElementById('tplText');
+  const sync = ()=>{ tplDraft = ta.value;
+    const el=document.getElementById('tplPrev'); if(el) el.textContent = resolveNote(ta.value, sample);
+    const g=document.getElementById('tplGap'); if(g) g.innerHTML = gapWarning(ta.value); };
+  ta.addEventListener('input', sync);
+  document.querySelectorAll('[data-tok]').forEach(b=>b.addEventListener('click', ()=>{
+    const s=ta.selectionStart||0, e=ta.selectionEnd||0;
+    ta.value = ta.value.slice(0,s) + b.dataset.tok + ta.value.slice(e);
+    ta.focus(); ta.selectionStart = ta.selectionEnd = s + b.dataset.tok.length; sync();
+  }));
+}
+
 function prospectModal(listId, prospect){
   const isEdit = !!prospect;
   const l = listById(listId);
@@ -1073,7 +1273,11 @@ function prospectModal(listId, prospect){
       <div class="field"><label>Status</label><select id="pStatus">${Object.keys(STATUSES).map(k=>`<option value="${k}" ${k===p.status?'selected':''}>${STATUSES[k]}</option>`).join('')}</select></div>
     </div>
     <div class="field"><label>LinkedIn profile URL</label><input id="pUrl" type="url" value="${esc(p.url)}" placeholder="https://www.linkedin.com/in/…"></div>
-    <div class="field"><label>Notes</label><textarea id="pNote" rows="2" placeholder="Optional context, e.g. warm intro via…">${esc(p.note)}</textarea></div>
+    <div class="field"><label>Note${isEdit&&p.noteCustom?' <span class="note-tag">Custom</span>':''}</label>
+      <textarea id="pNote" rows="2" placeholder="${esc(activeTplText()?resolveNote(activeTplText(), p):'Optional context, e.g. warm intro via…')}">${esc(isEdit?leadNote(p):'')}</textarea>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:4px">${activeTplText()
+        ? `Leave blank to follow the default note — <b>${esc(resolveNote(activeTplText(), p))}</b>. Anything you type here is kept through future default changes.`
+        : 'No default note is set yet.'}</div></div>
   </div>
   <div class="modal-foot"><button class="btn btn-ghost btn-sm" data-close>Cancel</button>
     <button class="btn btn-gold btn-sm" style="width:auto" id="pSave" data-list="${listId}" data-pid="${isEdit?p.id:''}">${isEdit?'Save changes':'Add prospect'}</button></div>`);
@@ -1120,19 +1324,70 @@ function findDuplicate(url, name, excludeId){
 }
 
 document.addEventListener('click', e=>{
-  const t = e.target.closest('[data-nav],[data-open-list],[data-addto],[data-edit],[data-archive],[data-del],[data-editlist],[data-close],[data-digest],[data-copynote],[data-pg],#pSave,#lSave,#lArchive');
+  const t = e.target.closest('[data-nav],[data-open-list],[data-addto],[data-edit],[data-archive],[data-del],[data-editlist],[data-close],[data-digest],[data-copynote],[data-pg],[data-editnote],[data-savenote],[data-cancelnote],[data-resetnote],[data-notetpl],[data-tplsave],[data-tplapply],[data-tplback],[data-tpluse],[data-tpledit],[data-tpldel],#pSave,#lSave,#lArchive');
   if(!t) return;
 
   if(t.dataset.digest!==undefined){ digestModal(); return; }
 
   if(t.dataset.copynote){
-    const p=S.prospects.find(x=>x.id===t.dataset.copynote); if(!p) return;
-    const note=connectNote(p.name);
-    const done=()=>toast(`Copied: <b>${esc(note)}</b>`);
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(note).then(done).catch(()=>{ fallbackCopy(note); done(); });
-    } else { fallbackCopy(note); done(); }
+    const p=S.prospects.find(x=>x.id===t.dataset.copynote); if(p) copyNote(p);
     return;
+  }
+  if(t.dataset.editnote){ editingNote = t.dataset.editnote; render();
+    const ta=document.getElementById('noteEd'); if(ta){ ta.focus(); ta.selectionStart=ta.value.length; } return; }
+  if(t.dataset.cancelnote){ editingNote=null; render(); return; }
+  if(t.dataset.savenote){
+    const p=S.prospects.find(x=>x.id===t.dataset.savenote); if(!p) return;
+    const ta=document.getElementById('noteEd'); if(!ta) return;
+    const val=ta.value.trim();
+    const wasDefault = resolveNote(activeTplText(), p);
+    p.note = val;
+    p.noteCustom = (val !== wasDefault);      /* typing the default back is not a customisation */
+    p.updatedAt = Date.now();
+    addActivity('edit', `Note updated for ${p.name}${p.noteCustom?' (custom)':''}`);
+    editingNote=null; persist(); render(); toast(`Note saved for <b>${esc(p.name)}</b>`); return;
+  }
+  if(t.dataset.resetnote){
+    const p=S.prospects.find(x=>x.id===t.dataset.resetnote); if(!p) return;
+    p.noteCustom=false; p.note=resolveNote(activeTplText(), p); p.updatedAt=Date.now();
+    addActivity('edit', `Note for ${p.name} reset to the default`);
+    editingNote=null; persist(); render(); toast(`<b>${esc(p.name)}</b> follows the default note again`); return;
+  }
+  if(t.dataset.notetpl){ tplDraft=null; tplConfirm=null; noteTemplateModal(); return; }
+  if(t.dataset.tpledit){
+    const tpl=(S.noteTemplates||[]).find(x=>x.id===t.dataset.tpledit);
+    if(tpl){ tplDraft=tpl.text; tplConfirm=null; noteTemplateModal(); } return;
+  }
+  if(t.dataset.tpldel){
+    S.noteTemplates=(S.noteTemplates||[]).filter(x=>x.id!==t.dataset.tpldel);
+    persist(); noteTemplateModal(); toast('Note removed'); return;
+  }
+  if(t.dataset.tpluse){
+    const tpl=(S.noteTemplates||[]).find(x=>x.id===t.dataset.tpluse);
+    if(tpl){ tplConfirm={text:tpl.text, id:tpl.id}; noteTemplateModal(); } return;
+  }
+  if(t.dataset.tplsave){
+    const ta=document.getElementById('tplText'); if(!ta) return;
+    const text=ta.value.trim();
+    if(!text){ toast('Write the note first'); return; }
+    tplConfirm={text, id:null}; noteTemplateModal(); return;
+  }
+  if(t.dataset.tplback){ tplConfirm=null; noteTemplateModal(); return; }
+  if(t.dataset.tplapply){
+    if(!tplConfirm) return;
+    let id=tplConfirm.id;
+    if(id){ const tpl=(S.noteTemplates||[]).find(x=>x.id===id); if(tpl) tpl.text=tplConfirm.text; }
+    else{
+      const same=(S.noteTemplates||[]).find(x=>x.text===tplConfirm.text);
+      if(same){ id=same.id; }
+      else{ id=uid(); S.noteTemplates.unshift({id, text:tplConfirm.text, createdAt:Date.now(), activatedAt:null,
+        createdBy:session?session.name:'System'}); }
+    }
+    const n=applyDefaultNote(id, false);
+    addActivity('edit', `Default note activated — "${tplConfirm.text}" applied to ${n} lead${n===1?'':'s'}`);
+    tplConfirm=null; tplDraft=null;
+    persist(); closeModal(); render();
+    toast(`Default note applied to <b>${n}</b> lead${n===1?'':'s'}`); return;
   }
 
   if(t.dataset.pg && view.startsWith('list:')){
@@ -1179,6 +1434,10 @@ document.addEventListener('click', e=>{
     const vals={name, icp, url, position:document.getElementById('pPos').value.trim(),
       company:document.getElementById('pComp').value.trim(), status:document.getElementById('pStatus').value,
       note:document.getElementById('pNote').value.trim()};
+    /* blank, or identical to the default, means "follow the default" */
+    const noteFor = o => resolveNote(activeTplText(), o);
+    vals.noteCustom = !!vals.note && vals.note !== noteFor(vals);
+    if(!vals.note) vals.note = noteFor(vals);
     if(pid){
       const p=S.prospects.find(x=>x.id===pid);
       const stChanged=p.status!==vals.status;
@@ -1394,6 +1653,7 @@ async function sendChat(){
   if(body) body.scrollTop = body.scrollHeight;
   await persist();
   renderChat();
+  notifyChat(S.messages[S.messages.length-1]);
 }
 function deleteChatMsg(id){
   const m = chatMsgs().find(x => x.id === id);
@@ -1416,6 +1676,262 @@ document.getElementById('chatInput').addEventListener('keydown', e=>{
 });
 document.addEventListener('keydown', e=>{
   if(e.key === 'Escape' && chatOpen && !document.getElementById('overlay').classList.contains('on')) closeChat();
+});
+
+/* ================= LEAD NOTES =================
+   Each lead carries an outreach note. It is generated from the active default
+   template unless the VA has written their own, in which case `noteCustom`
+   protects it from every future default rollout. Context that came from the
+   import (industry, location, prior-contact tags) lives in `context`, separate
+   from the note, so a rollout can never eat it. */
+const NOTE_TOKENS = [
+  {t:'{first}',   d:'First name',  f:p=>firstName(p.name)},
+  {t:'{name}',    d:'Full name',   f:p=>(p.name||'').trim()},
+  {t:'{company}', d:'Company',     f:p=>(p.company||'').trim()},
+  {t:'{position}',d:'Position',    f:p=>(p.position||'').trim()}
+];
+function resolveNote(tpl, p){
+  let s = String(tpl||'');
+  NOTE_TOKENS.forEach(k=>{ s = s.split(k.t).join(k.f(p)); });
+  return s.replace(/[ \t]{2,}/g,' ').replace(/\s+([,.!?])/g,'$1').trim();
+}
+/* leads where a token in the draft resolves to nothing — "saw your work at {company}"
+   reads badly for a lead with no company on file, so say so before any rollout */
+function noteTokenGaps(text){
+  const ps = S.prospects.filter(p=>!p.archived && isActiveListId(p.listId) && !p.noteCustom);
+  return NOTE_TOKENS.filter(k => String(text||'').includes(k.t)).map(k=>{
+    const bad = ps.filter(p => !k.f(p));
+    return {token:k.t, missing:bad.length, who: bad.length?bad[0].name:'', sample: bad.length?resolveNote(text, bad[0]):''};
+  }).filter(g => g.missing > 0);
+}
+function gapWarning(text){
+  const gaps = noteTokenGaps(text);
+  if(!gaps.length) return '';
+  return `<div class="gap-warn"><b>Heads up</b>${gaps.map(g=>
+    `<div style="margin-top:5px"><b>${esc(g.missing)}</b> lead${g.missing===1?'':'s'} have no <code>${esc(g.token)}</code> on file.
+     For ${esc(g.who)} the note would read: &ldquo;${esc(g.sample)}&rdquo;</div>`).join('')}
+    <div style="margin-top:6px;color:var(--muted)">Either drop that token, or edit those leads individually afterwards.</div></div>`;
+}
+const activeTpl = () => (S.noteTemplates||[]).find(t=>t.id===S.activeNoteId) || null;
+const activeTplText = () => { const t=activeTpl(); return t ? t.text : ''; };
+/* the note the copy icon hands over */
+function leadNote(p){
+  if(p.note) return p.note;
+  const t = activeTplText();
+  return t ? resolveNote(t, p) : '';
+}
+/* how many leads a rollout would touch */
+function rolloutCounts(){
+  const ps = S.prospects.filter(p=>!p.archived && isActiveListId(p.listId));
+  return {total:ps.length, custom:ps.filter(p=>p.noteCustom).length, update:ps.filter(p=>!p.noteCustom).length};
+}
+const isActiveListId = id => { const l=listById(id); return !!l && !l.archived; };
+function applyDefaultNote(tplId, scopeAll){
+  const t = (S.noteTemplates||[]).find(x=>x.id===tplId);
+  if(!t) return 0;
+  let n = 0;
+  S.prospects.forEach(p=>{
+    if(!scopeAll && !isActiveListId(p.listId)) return;
+    if(p.noteCustom) return;
+    const next = resolveNote(t.text, p);
+    if(p.note !== next){ p.note = next; n++; }
+  });
+  S.activeNoteId = tplId;
+  t.activatedAt = Date.now();
+  return n;
+}
+/* one-time: give notes their own lane, seed the first default */
+function applyNotesV2(){
+  if(S.notesV2) return false;
+  let moved = 0;
+  S.prospects.forEach(p=>{
+    if(p.note && !p.noteCustom){ p.context = p.note; p.note = ''; moved++; }
+    if(p.noteCustom === undefined) p.noteCustom = false;
+  });
+  if(!Array.isArray(S.noteTemplates)) S.noteTemplates = [];
+  if(!S.noteTemplates.length){
+    S.noteTemplates.push({id:uid(), text:'Hey {first}! Would love to connect.',
+      createdAt:Date.now(), activatedAt:null, createdBy:'System'});
+  }
+  const n = applyDefaultNote(S.noteTemplates[0].id, true);
+  S.notesV2 = true;
+  S.activity.unshift({id:uid(), ts:Date.now(), user:'System', action:'edit',
+    detail:`Lead notes enabled — default note "${S.noteTemplates[0].text}" applied to ${n} leads${moved?`; ${moved} imported industry/location notes moved to the lead's context line`:''}`});
+  return true;
+}
+function ensureNotes(){
+  let changed=false;
+  if(!Array.isArray(S.noteTemplates)){ S.noteTemplates=[]; changed=true; }
+  if(S.activeNoteId===undefined){ S.activeNoteId=null; changed=true; }
+  return changed;
+}
+
+/* ================= CHAT NOTIFICATIONS =================
+   The page has no server of its own, so it hands each new message to a small
+   relay (a Cloudflare Worker — see chat-notify-worker.js) that holds the mail
+   credentials and owns the recipient list. The sender's browser makes the call,
+   which is reliable because the sender is by definition online at that moment. */
+const NTF_DEFAULTS = {
+  enabled:false, url:'', appUrl:'', token:'',
+  quietSeconds:60,      /* one notification per burst */
+  activeSeconds:120,    /* silence if they are already reading */
+  recipients:{
+    team:  {name:'JA (CrossCore VA)',   email:'ja.crosscore@gmail.com',  sms:'+639355081996', smsEnabled:false},
+    client:{name:'Kallista Capparelli', email:'kc7@signaturelocker.com', sms:'',              smsEnabled:false}
+  }
+};
+function ensureNotify(){
+  let changed=false;
+  if(!S.notify){ S.notify = JSON.parse(JSON.stringify(NTF_DEFAULTS)); changed=true; }
+  const n = S.notify;
+  Object.keys(NTF_DEFAULTS).forEach(k=>{ if(n[k]===undefined){ n[k]=JSON.parse(JSON.stringify(NTF_DEFAULTS[k])); changed=true; } });
+  if(!n.recipients) { n.recipients = JSON.parse(JSON.stringify(NTF_DEFAULTS.recipients)); changed=true; }
+  ['team','client'].forEach(p=>{ if(!n.recipients[p]){ n.recipients[p]=JSON.parse(JSON.stringify(NTF_DEFAULTS.recipients[p])); changed=true; } });
+  if(!Array.isArray(n.log)){ n.log=[]; changed=true; }
+  if(!Array.isArray(n.queue)){ n.queue=[]; changed=true; }
+  if(!n.lastSent){ n.lastSent={team:0,client:0}; changed=true; }
+  return changed;
+}
+function ntfLog(status, to, detail){
+  ensureNotify();
+  S.notify.log.unshift({id:uid(), ts:Date.now(), status, to, detail:String(detail||'').slice(0,160)});
+  if(S.notify.log.length>25) S.notify.log.length=25;
+}
+/* deep link that drops the recipient straight into the open thread */
+function chatLink(portal){
+  const base = (S.notify && S.notify.appUrl || '').trim().replace(/[?#].*$/,'').replace(/\/+$/,'');
+  if(!base) return '';
+  return base + '?portal=' + portal + '&chat=1';
+}
+/* decide whether this message earns a notification, and build its payload */
+function buildNotice(msg){
+  ensureNotify();
+  const n = S.notify;
+  const to = msg.from === 'team' ? 'client' : 'team';
+  const r  = n.recipients[to] || {};
+  if(!n.enabled)          return {skip:'notifications are switched off'};
+  if(!n.url)              return {skip:'no relay URL configured'};
+  if(!r.email && !(r.smsEnabled && r.sms)) return {skip:'no address on file for '+(r.name||to)};
+  const now = Date.now();
+  const readAt = (S.chatRead && S.chatRead[to]) || 0;
+  if(now - readAt < (n.activeSeconds||120)*1000)
+    return {skip:(r.name||to)+' is reading the chat right now'};
+  if(now - ((n.lastSent||{})[to]||0) < (n.quietSeconds||60)*1000)
+    return {skip:'already notified '+(r.name||to)+' in the last '+(n.quietSeconds||60)+'s'};
+  /* carry everything they have not read, so one mail covers a whole burst */
+  const unread = chatMsgs()
+    .filter(m => m.from !== to && !m.deleted && m.ts > readAt)
+    .slice(-10)
+    .map(m => ({from:m.name || CHAT_NAME[m.from], ts:m.ts, text:m.text}));
+  return {payload:{
+    id: msg.id,
+    event: 'chat_message',
+    sentAt: msg.ts,
+    from: {portal: msg.from, name: msg.name || CHAT_NAME[msg.from]},
+    to:   {portal: to, name: r.name || CHAT_NAME[to], email: r.email || '',
+           sms: (r.smsEnabled && r.sms) ? r.sms : ''},
+    channels: [r.email ? 'email' : null, (r.smsEnabled && r.sms) ? 'sms' : null].filter(Boolean),
+    preview: (msg.text||'').slice(0, 280),
+    unreadCount: unread.length,
+    messages: unread,
+    link: chatLink(to)
+  }};
+}
+async function postNotice(payload){
+  const n = S.notify;
+  const headers = {'Content-Type':'application/json'};
+  if(n.token) headers['X-Desk-Token'] = n.token;
+  const res = await fetch(n.url, {method:'POST', headers, body:JSON.stringify(payload), keepalive:true});
+  if(!res.ok) throw new Error('relay responded ' + res.status);
+  return res;
+}
+async function notifyChat(msg){
+  if(!S) return;
+  const built = buildNotice(msg);
+  if(built.skip){ ntfLog('skipped', msg.from==='team'?'client':'team', built.skip); return; }
+  const p = built.payload;
+  try{
+    await postNotice(p);
+    S.notify.lastSent[p.to.portal] = Date.now();
+    ntfLog('sent', p.to.portal, p.channels.join(' + ') + ' · ' + (p.to.email||p.to.sms));
+  }catch(e){
+    /* hold it and try again on the next poll rather than losing the alert */
+    S.notify.queue.push({tries:1, at:Date.now(), payload:p});
+    if(S.notify.queue.length>20) S.notify.queue.shift();
+    ntfLog('queued', p.to.portal, e.message + ' — will retry');
+  }
+  persist();
+}
+/* retry anything the relay refused earlier (own portal only, so two tabs
+   can't both flush the same alert) */
+let ntfFlushing = false;
+async function flushNotices(){
+  if(ntfFlushing || !S || !S.notify || !S.notify.enabled || !S.notify.url) return;
+  const mine = (S.notify.queue||[]).filter(q => q.payload && q.payload.from.portal === myPortal());
+  if(!mine.length) return;
+  ntfFlushing = true;
+  let changed = false;
+  for(const item of mine.slice(0,3)){
+    try{
+      await postNotice(item.payload);
+      S.notify.queue = S.notify.queue.filter(q => q !== item);
+      S.notify.lastSent[item.payload.to.portal] = Date.now();
+      ntfLog('sent', item.payload.to.portal, 'delivered on retry');
+      changed = true;
+    }catch(e){
+      item.tries = (item.tries||1) + 1;
+      if(item.tries > 6){
+        S.notify.queue = S.notify.queue.filter(q => q !== item);
+        ntfLog('failed', item.payload.to.portal, 'gave up after 6 tries — ' + e.message);
+        changed = true;
+      }
+    }
+  }
+  ntfFlushing = false;
+  if(changed){ persist(); if(view==='integration' && session) render(); }
+}
+async function sendTestNotice(){
+  ensureNotify();
+  if(!S.notify.url){ toast('Add the relay URL first'); return; }
+  const to = myPortal()==='team' ? 'client' : 'team';
+  const r = S.notify.recipients[to]||{};
+  const p = {id:uid(), event:'test', sentAt:Date.now(),
+    from:{portal:myPortal(), name:CHAT_NAME[myPortal()]},
+    to:{portal:to, name:r.name||to, email:r.email||'', sms:(r.smsEnabled&&r.sms)?r.sms:''},
+    channels:[r.email?'email':null,(r.smsEnabled&&r.sms)?'sms':null].filter(Boolean),
+    preview:'Test alert from the Prospect Desk — notifications are wired up correctly.',
+    unreadCount:1,
+    messages:[{from:CHAT_NAME[myPortal()], ts:Date.now(), text:'Test alert from the Prospect Desk — notifications are wired up correctly.'}],
+    link:chatLink(to)};
+  toast('Sending test…');
+  try{
+    await postNotice(p);
+    ntfLog('sent', to, 'test alert · ' + (p.to.email||p.to.sms));
+    toast(`Test sent to <b>${esc(p.to.email||p.to.sms)}</b>`);
+  }catch(e){
+    ntfLog('failed', to, 'test — ' + e.message);
+    toast('⚠ Test failed — ' + esc(e.message));
+  }
+  persist(); render();
+}
+
+/* ---- notification settings handlers ---- */
+document.addEventListener('click', e=>{
+  const t = e.target.closest('#ntfSave, #ntfTest');
+  if(!t || !S) return;
+  ensureNotify();
+  if(t.id==='ntfSave'){
+    const g = id => (document.getElementById(id)||{}).value;
+    S.notify.url     = (g('ntfUrl')||'').trim();
+    S.notify.token   = (g('ntfToken')||'').trim();
+    S.notify.appUrl  = (g('ntfApp')||'').trim();
+    S.notify.recipients.team.email   = (g('ntfTeamEmail')||'').trim();
+    S.notify.recipients.client.email = (g('ntfClientEmail')||'').trim();
+    S.notify.enabled = !!(document.getElementById('ntfOn')||{}).checked;
+    S.notify.recipients.team.smsEnabled = !!(document.getElementById('ntfSms')||{}).checked;
+    addActivity('list', `Chat notifications ${S.notify.enabled?'switched on':'switched off'}`);
+    persist(); render(); toast('Notification settings saved');
+  } else { sendTestNotice(); }
 });
 
 /* ================= TODAY'S DIGEST (client notification) ================= */
@@ -1543,9 +2059,21 @@ document.getElementById('signOut').addEventListener('click', ()=>{
   if(applyGrowToro()) needWrite = true;
   if(applySept2026()) needWrite = true;
   if(ensureChat()) needWrite = true;
+  if(ensureNotify()) needWrite = true;
+  if(ensureNotes()) needWrite = true;
+  if(applyNotesV2()) needWrite = true;
   if(needWrite) await persist();
   lastSyncAt = Date.now();
   updateSyncStat();
+  /* deep link from a notification email: ?portal=client&chat=1 */
+  try{
+    const q = new URLSearchParams(location.search);
+    const p = q.get('portal');
+    if(p==='team' || p==='client'){
+      enterPortal(p);
+      if(q.get('chat')==='1' || location.hash==='#chat') setTimeout(openChat, 420);
+    }
+  }catch(e){}
 })();
 </script>
 </body>
