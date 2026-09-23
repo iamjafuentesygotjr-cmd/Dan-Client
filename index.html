@@ -231,6 +231,12 @@ td .p-pos{font-size:11.5px;color:var(--muted);max-width:260px;overflow:hidden;te
   font-family:ui-monospace,Menlo,monospace;margin-right:5px;cursor:pointer}
 .note-prev{background:var(--paper);border:1px solid var(--line-soft);border-radius:10px;padding:11px 13px;margin-top:10px}
 .note-prev b{display:block;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.solo-warn{display:flex;gap:12px;align-items:flex-start;background:#FBEAE1;border:1px solid #F0C4AC;
+  border-left:4px solid var(--red);border-radius:12px;padding:13px 16px;margin-bottom:18px}
+.solo-warn b{display:block;font-family:'Archivo';font-size:13.5px;color:var(--ink);margin-bottom:3px}
+.solo-warn span{font-size:12.8px;line-height:1.55;color:var(--body)}
+.solo-warn code{background:#fff;border:1px solid var(--line);border-radius:4px;padding:0 5px;font-family:ui-monospace,Menlo,monospace;font-size:11.5px}
+.chat-warn{background:#FBEAE1;border-bottom:1px solid #F0C4AC;padding:9px 14px;font-size:11.8px;line-height:1.45;color:#8A3B18;flex:none}
 .gap-warn{background:var(--amber-soft);border:1px solid #F0DCA8;border-radius:11px;padding:11px 13px;margin-top:11px;font-size:12.6px;line-height:1.5;color:var(--ink)}
 .gap-warn b{font-weight:700}
 .gap-warn code{background:#fff;border:1px solid var(--line);border-radius:4px;padding:0 4px;font-family:ui-monospace,Menlo,monospace;font-size:11.5px}
@@ -381,6 +387,7 @@ td .p-pos{font-size:11.5px;color:var(--muted);max-width:260px;overflow:hidden;te
     <div><div class="ch-t">Project chat</div><div class="ch-s" id="chatWho">CrossCore VA &harr; Kallista</div></div>
     <button class="ch-x" id="chatClose" type="button" aria-label="Close chat">&times;</button>
   </div>
+  <div class="chat-warn" id="chatWarn" style="display:none">Saving to this browser only — messages sent here will not reach the other person until the shared database is set up.</div>
   <div class="chat-body" id="chatBody"></div>
   <div class="chat-foot">
     <textarea id="chatInput" rows="1" placeholder="Write a message&hellip;" maxlength="4000"></textarea>
@@ -409,7 +416,21 @@ const KEY = 'ccopc-prospect-desk-v1';
    3. Paste your Project URL and anon public key below, save, re-upload.
    Leave both empty ('') to use workspace/browser storage instead.
    ============================================================ */
-const SUPA_URL = '';   // e.g. 'https://abcdefgh.supabase.co'
+/* ============================================================
+   SHARED DATABASE + NOTIFICATIONS  ← paste your worker URL here
+   ------------------------------------------------------------
+   Until this is filled in, the desk saves to THIS BROWSER ONLY: the chat
+   cannot reach anyone on another computer and no notification can be sent.
+   Deploy prospect-desk-worker.js (see SETUP.md), then paste its address:
+
+     const RELAY_URL = 'https://prospect-desk.yourname.workers.dev';
+
+   RELAY_TOKEN must match DESK_TOKEN in the worker, or leave both empty.
+   ============================================================ */
+const RELAY_URL   = '';
+const RELAY_TOKEN = '';
+
+const SUPA_URL = '';   // e.g. 'https://abcdefgh.supabase.co'  (alternative to RELAY_URL)
 const SUPA_KEY = '';   // anon public key from Project Settings → API
 const STATUSES = {
   NOT_CONNECTED:'Not Connected',
@@ -557,6 +578,7 @@ function freshState(){
    the file is opened outside Claude, then to memory as a last resort. */
 let backendType = 'memory';
 (function detectBackend(){
+  if(RELAY_URL){ backendType='relay'; return; }
   if(SUPA_URL && SUPA_KEY){ backendType='supabase'; return; }
   try{ if(window.storage && window.storage.get && window.storage.set){ backendType='claude'; return; } }catch(e){}
   try{
@@ -566,6 +588,26 @@ let backendType = 'memory';
   }catch(e){ backendType='memory'; }
 })();
 memoryOnly = (backendType==='memory');
+
+/* ---- shared database over the worker (one JSON document) ---- */
+const relayHeaders = () => RELAY_TOKEN ? {'Content-Type':'application/json','X-Desk-Token':RELAY_TOKEN}
+                                       : {'Content-Type':'application/json'};
+async function relayLoad(revOnly=false){
+  const res = await fetch(RELAY_URL.replace(/\/+$/,'') + '/state' + (revOnly?'?rev=1':''),
+    {headers: relayHeaders(), cache:'no-store'});
+  if(!res.ok) throw new Error('relay read ' + res.status);
+  const j = await res.json();
+  if(revOnly) return {rev: j.rev||0};
+  return j.data ? Object.assign({}, j.data, {rev: j.rev || j.data.rev || 0}) : null;
+}
+async function relaySave(state){
+  const res = await fetch(RELAY_URL.replace(/\/+$/,'') + '/state',
+    {method:'POST', headers: relayHeaders(), body: JSON.stringify({rev: state.rev, data: state})});
+  if(!res.ok) throw new Error('relay write ' + res.status);
+  const j = await res.json().catch(()=>({}));
+  if(j && j.rev) state.rev = j.rev;      /* the worker owns the revision counter */
+  return j;
+}
 
 /* ---- cloud database helpers (Supabase REST, single-row JSON document) ---- */
 const supaHeaders = () => ({'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json'});
@@ -590,7 +632,14 @@ async function persist(){
   /* advance past whatever revision is already in the centralized store so a
      portal that loaded earlier can never tie with or roll back another's save */
   try{
-    if(backendType==='supabase'){
+    if(backendType==='relay'){
+      const r = await relayLoad(true);
+      if(r && (r.rev||0) >= (S.rev||0)){
+        S.rev = r.rev;
+        try{ reconcileChat(await relayLoad()); }catch(e2){}
+      }
+    }
+    else if(backendType==='supabase'){
       const r = await supaLoad(true);
       if(r && (r.rev||0) >= (S.rev||0)){
         S.rev = r.rev;
@@ -607,14 +656,15 @@ async function persist(){
   S.savedBy = session ? session.name : 'System';
   const json = JSON.stringify(S);
   try{
-    if(backendType==='supabase'){ await supaSave(S); try{window.localStorage.setItem(KEY,json);}catch(e2){} }
+    if(backendType==='relay'){ await relaySave(S); try{window.localStorage.setItem(KEY,JSON.stringify(S));}catch(e2){} }
+    else if(backendType==='supabase'){ await supaSave(S); try{window.localStorage.setItem(KEY,json);}catch(e2){} }
     else if(backendType==='claude'){ await window.storage.set(KEY, json, true); } /* shared=true → centralized */
     else if(backendType==='local'){ window.localStorage.setItem(KEY, json); }
     cloudDown=false;
     updateSyncStat();
   }catch(e){
-    if(backendType==='supabase'){
-      /* cloud temporarily unreachable — keep the change locally; polling re-pushes automatically */
+    if(backendType==='relay' || backendType==='supabase'){
+      /* relay temporarily unreachable — keep the change locally; polling re-pushes automatically */
       cloudDown=true; pendingPush=true;
       try{ window.localStorage.setItem(KEY, json); }catch(e2){}
       updateSyncStat();
@@ -640,7 +690,13 @@ async function readLegacyPersonal(){
 }
 async function loadState(){
   try{
-    if(backendType==='supabase'){
+    if(backendType==='relay'){
+      /* the worker is the source of truth; carry a newer local copy up on first run */
+      const remote = await relayLoad();
+      const local = readLocal();
+      if(remote && local) return ((local.rev||0) > (remote.rev||0)) ? local : remote;
+      return remote || local;
+    } else if(backendType==='supabase'){
       /* cloud row is the source of truth; migrate a newer local copy forward
          (e.g. first run after enabling the cloud on the device that has the data) */
       const remote = await supaLoad();
@@ -674,12 +730,20 @@ async function refreshFromStorage(){
   if(backendType==='memory') return;
   try{
     /* recover from a cloud outage: re-push the locally held change first */
+    if(backendType==='relay' && pendingPush && S){
+      await relaySave(S); pendingPush=false; cloudDown=false;
+      toast('Back online — your changes were saved');
+    }
     if(backendType==='supabase' && pendingPush && S){
       await supaSave(S); pendingPush=false; cloudDown=false;
       toast('Cloud back online — your changes were synced');
     }
     let fresh=null;
-    if(backendType==='supabase'){
+    if(backendType==='relay'){
+      const head = await relayLoad(true);
+      cloudDown=false;
+      if(head && S && (head.rev||0) > (S.rev||0)) fresh = await relayLoad();
+    } else if(backendType==='supabase'){
       const head = await supaLoad(true);           /* cheap revision-only check */
       cloudDown=false;
       if(head && S && (head.rev||0) > (S.rev||0)) fresh = await supaLoad();
@@ -725,7 +789,7 @@ async function refreshFromStorage(){
       }
     }
   }catch(e){
-    if(backendType==='supabase'){ cloudDown=true; updateSyncStat(); }
+    if(backendType==='relay' || backendType==='supabase'){ cloudDown=true; updateSyncStat(); }
     /* transient failure — next poll retries automatically */
   }
 }
@@ -733,7 +797,11 @@ function updateSyncStat(){
   const el=document.getElementById('syncStat'); if(!el) return;
   const t = lastSyncAt||S&&S.savedAt;
   const stamp = t?' · checked '+new Date(t).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}):'';
-  el.innerHTML = backendType==='supabase'
+  el.innerHTML = backendType==='relay'
+    ? (cloudDown
+      ? `<span style="color:#E8A13C">●</span> Shared database offline — retrying`
+      : `<span style="color:#4CAF7D">●</span> Shared database · live${stamp}`)
+    : backendType==='supabase'
     ? (cloudDown
       ? `<span style="color:#E8A13C">●</span> Cloud offline — retrying automatically`
       : `<span style="color:#4CAF7D">●</span> Cloud database · live${stamp}`)
@@ -1044,21 +1112,23 @@ function renderNotifySettings(){
   <div class="card int-card" style="margin-top:18px">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
       <h3 style="margin:0">Chat notifications</h3>${st}</div>
-    <p>Every new chat message is handed to your relay, which sends the email. The relay holds the
-    mail credentials and its own copy of the recipient list, so nothing sensitive sits in this file.
+    <p>${RELAY_URL
+      ? 'Your worker stores the shared database <b>and</b> sends these emails itself, so an alert goes out even if the sender closes their laptop and neither person needs anything set up on their own device. The two recipient addresses live in the worker\'s settings, not in this file.'
+      : 'Every new chat message is handed to your relay, which sends the email. The relay holds the mail credentials and its own copy of the recipient list, so nothing sensitive sits in this file.'}
     Alerts are skipped while the other person already has the chat open, and at most one is sent
     per ${esc(String(n.quietSeconds||60))} seconds — it carries everything they have not read yet.</p>
+    ${RELAY_URL?`<div class="note-prev" style="margin-top:0"><b>Worker</b>${esc(RELAY_URL)}</div>`:''}
     <div class="ntf-grid">
-      <div class="ntf-f"><label>Relay URL</label>
-        <input id="ntfUrl" type="url" placeholder="https://chat-notify.yourname.workers.dev" value="${esc(n.url||'')}"></div>
+      ${RELAY_URL?'':`<div class="ntf-f"><label>Relay URL</label>
+        <input id="ntfUrl" type="url" placeholder="https://prospect-desk.yourname.workers.dev" value="${esc(n.url||'')}"></div>
       <div class="ntf-f"><label>Shared token (optional)</label>
-        <input id="ntfToken" type="text" placeholder="matches DESK_TOKEN in the worker" value="${esc(n.token||'')}"></div>
+        <input id="ntfToken" type="text" placeholder="matches DESK_TOKEN in the worker" value="${esc(n.token||'')}"></div>`}
       <div class="ntf-f"><label>Address of this app</label>
         <input id="ntfApp" type="url" placeholder="https://prospects.crosscore.com/" value="${esc(n.appUrl||'')}"></div>
       <div class="ntf-f"><label>Notify ${esc(R.team.name||'the VA')} at</label>
-        <input id="ntfTeamEmail" type="email" value="${esc(R.team.email||'')}"></div>
+        <input id="ntfTeamEmail" type="email" value="${esc(R.team.email||'')}" ${RELAY_URL?'disabled title="Set by EMAIL_TEAM in the worker"':''}></div>
       <div class="ntf-f"><label>Notify ${esc(R.client.name||'the client')} at</label>
-        <input id="ntfClientEmail" type="email" value="${esc(R.client.email||'')}"></div>
+        <input id="ntfClientEmail" type="email" value="${esc(R.client.email||'')}" ${RELAY_URL?'disabled title="Set by EMAIL_CLIENT in the worker"':''}></div>
     </div>
     <div class="ntf-row">
       <label style="display:flex;align-items:center;gap:7px;font-size:13px">
@@ -1301,15 +1371,28 @@ function listModal(list){
 }
 
 /* ================= RENDER ================= */
+function deviceOnlyBanner(){
+  if(backendType!=='local' && backendType!=='memory') return '';
+  return `<div class="solo-warn">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex:none;margin-top:1px"><path d="M10 2.6l7.5 13H2.5L10 2.6z" stroke="#C2410C" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 8v3.4M10 13.6v.5" stroke="#C2410C" stroke-width="1.7" stroke-linecap="round"/></svg>
+    <div><b>This desk is saving to this browser only</b>
+    <span>Chat messages and notifications cannot reach anyone on another computer, and no email can be sent.
+    ${session && session.role==='admin'
+      ? 'To fix it, deploy the worker in <code>prospect-desk-worker.js</code> and paste its address into <code>RELAY_URL</code> near the top of this file (see SETUP.md). Everything already saved here is carried over automatically.'
+      : 'Ask the CrossCore team to finish the shared-database setup.'}</span></div>
+  </div>`;
+}
+
 function render(){
   renderNav();
   renderChat();
   const root = document.getElementById('pageRoot');
-  if(view==='dashboard') root.innerHTML = renderDashboard();
-  else if(view.startsWith('list:')) root.innerHTML = renderList(view.slice(5));
-  else if(view==='activity') root.innerHTML = renderActivity();
-  else if(view==='integration') root.innerHTML = renderIntegration();
-  else if(view==='access') root.innerHTML = renderAccess();
+  const warn = deviceOnlyBanner();
+  if(view==='dashboard') root.innerHTML = warn + renderDashboard();
+  else if(view.startsWith('list:')) root.innerHTML = warn + renderList(view.slice(5));
+  else if(view==='activity') root.innerHTML = warn + renderActivity();
+  else if(view==='integration') root.innerHTML = warn + renderIntegration();
+  else if(view==='access') root.innerHTML = warn + renderAccess();
 }
 
 /* ================= ACTIONS ================= */
@@ -1577,6 +1660,8 @@ function renderChat(){
   const n = chatUnread();
   fab.classList.toggle('has-unread', n>0);
   document.getElementById('chatBadge').textContent = n>9 ? '9+' : String(n);
+  const cw = document.getElementById('chatWarn');
+  if(cw) cw.style.display = (backendType==='local'||backendType==='memory') ? 'block' : 'none';
   const who = document.getElementById('chatWho');
   if(who) who.innerHTML = myPortal()==='team'
     ? 'You are <b style="color:#fff;font-weight:700">CrossCore VA</b> &middot; talking to Kallista'
@@ -1653,7 +1738,7 @@ async function sendChat(){
   if(body) body.scrollTop = body.scrollHeight;
   await persist();
   renderChat();
-  notifyChat(S.messages[S.messages.length-1]);
+  if(backendType!=='relay') notifyChat(S.messages[S.messages.length-1]);  /* the worker handles it */
 }
 function deleteChatMsg(id){
   const m = chatMsgs().find(x => x.id === id);
@@ -1790,6 +1875,9 @@ function ensureNotify(){
   if(!Array.isArray(n.log)){ n.log=[]; changed=true; }
   if(!Array.isArray(n.queue)){ n.queue=[]; changed=true; }
   if(!n.lastSent){ n.lastSent={team:0,client:0}; changed=true; }
+  /* a deployed relay means notifications are wanted — switch them on once,
+     rather than leaving a hidden toggle that silently sends nothing */
+  if(RELAY_URL && !n.relayOn){ n.enabled = true; n.relayOn = true; changed = true; }
   return changed;
 }
 function ntfLog(status, to, detail){
@@ -1839,14 +1927,16 @@ function buildNotice(msg){
 }
 async function postNotice(payload){
   const n = S.notify;
+  const url = RELAY_URL ? (RELAY_URL.replace(/\/+$/,'') + '/notify') : n.url;
   const headers = {'Content-Type':'application/json'};
-  if(n.token) headers['X-Desk-Token'] = n.token;
-  const res = await fetch(n.url, {method:'POST', headers, body:JSON.stringify(payload), keepalive:true});
+  const tok = RELAY_URL ? RELAY_TOKEN : n.token;
+  if(tok) headers['X-Desk-Token'] = tok;
+  const res = await fetch(url, {method:'POST', headers, body:JSON.stringify(payload), keepalive:true});
   if(!res.ok) throw new Error('relay responded ' + res.status);
   return res;
 }
 async function notifyChat(msg){
-  if(!S) return;
+  if(!S || backendType==='relay') return;   /* server-side worker owns this */
   const built = buildNotice(msg);
   if(built.skip){ ntfLog('skipped', msg.from==='team'?'client':'team', built.skip); return; }
   const p = built.payload;
@@ -1892,7 +1982,7 @@ async function flushNotices(){
 }
 async function sendTestNotice(){
   ensureNotify();
-  if(!S.notify.url){ toast('Add the relay URL first'); return; }
+  if(!S.notify.url && !RELAY_URL){ toast('Add the relay URL first'); return; }
   const to = myPortal()==='team' ? 'client' : 'team';
   const r = S.notify.recipients[to]||{};
   const p = {id:uid(), event:'test', sentAt:Date.now(),
@@ -1922,11 +2012,15 @@ document.addEventListener('click', e=>{
   ensureNotify();
   if(t.id==='ntfSave'){
     const g = id => (document.getElementById(id)||{}).value;
-    S.notify.url     = (g('ntfUrl')||'').trim();
-    S.notify.token   = (g('ntfToken')||'').trim();
+    if(!RELAY_URL){
+      S.notify.url   = (g('ntfUrl')||'').trim();
+      S.notify.token = (g('ntfToken')||'').trim();
+    }
     S.notify.appUrl  = (g('ntfApp')||'').trim();
-    S.notify.recipients.team.email   = (g('ntfTeamEmail')||'').trim();
-    S.notify.recipients.client.email = (g('ntfClientEmail')||'').trim();
+    if(!RELAY_URL){
+      S.notify.recipients.team.email   = (g('ntfTeamEmail')||'').trim();
+      S.notify.recipients.client.email = (g('ntfClientEmail')||'').trim();
+    }
     S.notify.enabled = !!(document.getElementById('ntfOn')||{}).checked;
     S.notify.recipients.team.smsEnabled = !!(document.getElementById('ntfSms')||{}).checked;
     addActivity('list', `Chat notifications ${S.notify.enabled?'switched on':'switched off'}`);
@@ -2045,7 +2139,10 @@ document.getElementById('signOut').addEventListener('click', ()=>{
 /* ================= BOOT ================= */
 (async function boot(){
   let shared=null, adopted=null;
-  if(backendType==='claude'){
+  if(backendType==='relay'){
+    adopted = await loadState().catch(()=>null);
+    shared = adopted;
+  } else if(backendType==='claude'){
     shared = await readShared();
     const legacy = await readLegacyPersonal();
     adopted = (shared && legacy) ? (((legacy.rev||0) > (shared.rev||0)) ? legacy : shared) : (shared || legacy);
