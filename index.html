@@ -816,9 +816,25 @@ function updateSyncStat(){
     : `<span style="color:#D06">●</span> Memory only — not saved`;
 }
 window.addEventListener('storage', e=>{ if(e.key===KEY) refreshFromStorage(); });
-setInterval(refreshFromStorage, 5000);
-window.addEventListener('focus', refreshFromStorage);
-document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') refreshFromStorage(); });
+/* Poll quickly while someone is actually looking at the desk, slowly when the tab
+   is in the background. A desk left open all day would otherwise spend the shared
+   database's monthly allowance on checks nobody is reading. */
+const POLL_ACTIVE = 5000, POLL_IDLE = 30000;
+let pollTimer = null;
+const pollDelay = () => document.visibilityState === 'hidden' ? POLL_IDLE : POLL_ACTIVE;
+function schedulePoll(){
+  clearTimeout(pollTimer);
+  pollTimer = setTimeout(function(){
+    Promise.resolve(refreshFromStorage()).catch(()=>{}).then(schedulePoll);
+  }, pollDelay());
+}
+schedulePoll();
+window.addEventListener('focus', ()=>{ refreshFromStorage(); schedulePoll(); });
+document.addEventListener('visibilitychange', ()=>{
+  /* coming back to the tab: catch up at once, then return to the fast rhythm */
+  if(document.visibilityState==='visible') refreshFromStorage();
+  schedulePoll();
+});
 
 /* ================= HELPERS ================= */
 const listById = id => S.lists.find(l=>l.id===id);
