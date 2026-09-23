@@ -417,17 +417,20 @@ const KEY = 'ccopc-prospect-desk-v1';
    Leave both empty ('') to use workspace/browser storage instead.
    ============================================================ */
 /* ============================================================
-   SHARED DATABASE + NOTIFICATIONS  ← paste your worker URL here
+   SHARED DATABASE + NOTIFICATIONS
    ------------------------------------------------------------
-   Until this is filled in, the desk saves to THIS BROWSER ONLY: the chat
-   cannot reach anyone on another computer and no notification can be sent.
-   Deploy prospect-desk-worker.js (see SETUP.md), then paste its address:
+   '/api' means "the backend that ships beside this file" — the two Vercel
+   Functions in api/state.js and api/notify.js. Nothing to fill in: they are
+   served from the same address as this page.
 
-     const RELAY_URL = 'https://prospect-desk.yourname.workers.dev';
+   If the backend is ever unreachable the desk says so in a red banner and
+   falls back to this-browser-only storage, so the failure is never silent.
 
-   RELAY_TOKEN must match DESK_TOKEN in the worker, or leave both empty.
+   RELAY_TOKEN only matters if you set DESK_TOKEN in Vercel; leave both empty
+   otherwise. Point RELAY_URL at a full https://… address only if you host the
+   backend somewhere other than this site.
    ============================================================ */
-const RELAY_URL   = '';
+const RELAY_URL   = '/api';
 const RELAY_TOKEN = '';
 
 const SUPA_URL = '';   // e.g. 'https://abcdefgh.supabase.co'  (alternative to RELAY_URL)
@@ -577,6 +580,7 @@ function freshState(){
    link reads and writes the same records). Falls back to browser localStorage when
    the file is opened outside Claude, then to memory as a last resort. */
 let backendType = 'memory';
+let relayError = '';   /* why the shared database could not be reached, if it could not */
 (function detectBackend(){
   if(RELAY_URL){ backendType='relay'; return; }
   if(SUPA_URL && SUPA_KEY){ backendType='supabase'; return; }
@@ -1113,11 +1117,11 @@ function renderNotifySettings(){
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
       <h3 style="margin:0">Chat notifications</h3>${st}</div>
     <p>${RELAY_URL
-      ? 'Your worker stores the shared database <b>and</b> sends these emails itself, so an alert goes out even if the sender closes their laptop and neither person needs anything set up on their own device. The two recipient addresses live in the worker\'s settings, not in this file.'
+      ? 'The backend stores the shared database <b>and</b> sends these emails itself, so an alert goes out even if the sender closes their laptop and neither person needs anything set up on their own device. The two recipient addresses live in your hosting environment variables, not in this file.'
       : 'Every new chat message is handed to your relay, which sends the email. The relay holds the mail credentials and its own copy of the recipient list, so nothing sensitive sits in this file.'}
     Alerts are skipped while the other person already has the chat open, and at most one is sent
     per ${esc(String(n.quietSeconds||60))} seconds — it carries everything they have not read yet.</p>
-    ${RELAY_URL?`<div class="note-prev" style="margin-top:0"><b>Worker</b>${esc(RELAY_URL)}</div>`:''}
+    ${RELAY_URL?`<div class="note-prev" style="margin-top:0"><b>Backend</b>${esc(RELAY_URL)} ${backendType==='relay'?'· connected':'· <span style="color:var(--red)">not responding</span>'}</div>`:''}
     <div class="ntf-grid">
       ${RELAY_URL?'':`<div class="ntf-f"><label>Relay URL</label>
         <input id="ntfUrl" type="url" placeholder="https://prospect-desk.yourname.workers.dev" value="${esc(n.url||'')}"></div>
@@ -1126,9 +1130,9 @@ function renderNotifySettings(){
       <div class="ntf-f"><label>Address of this app</label>
         <input id="ntfApp" type="url" placeholder="https://prospects.crosscore.com/" value="${esc(n.appUrl||'')}"></div>
       <div class="ntf-f"><label>Email ${esc(R.team.name||'the VA')} at</label>
-        <input id="ntfTeamEmail" type="email" value="${esc(R.team.email||'')}" ${RELAY_URL?'disabled title="Set by EMAIL_TEAM in the worker"':''}></div>
+        <input id="ntfTeamEmail" type="email" value="${esc(R.team.email||'')}" ${RELAY_URL?'disabled title="Set by the EMAIL_TEAM environment variable"':''}></div>
       <div class="ntf-f"><label>Email ${esc(R.client.name||'the client')} at</label>
-        <input id="ntfClientEmail" type="email" value="${esc(R.client.email||'')}" ${RELAY_URL?'disabled title="Set by EMAIL_CLIENT in the worker"':''}></div>
+        <input id="ntfClientEmail" type="email" value="${esc(R.client.email||'')}" ${RELAY_URL?'disabled title="Set by the EMAIL_CLIENT environment variable"':''}></div>
     </div>
     <div class="ntf-row">
       <label style="display:flex;align-items:center;gap:7px;font-size:13px">
@@ -1376,7 +1380,9 @@ function deviceOnlyBanner(){
     <div><b>This desk is saving to this browser only</b>
     <span>Chat messages and notifications cannot reach anyone on another computer, and no email can be sent.
     ${session && session.role==='admin'
-      ? 'To fix it, deploy the worker in <code>prospect-desk-worker.js</code> and paste its address into <code>RELAY_URL</code> near the top of this file (see SETUP.md). Everything already saved here is carried over automatically.'
+      ? (relayError
+          ? `The backend at <code>${esc(RELAY_URL)}</code> did not answer: <b>${esc(relayError)}</b>. In Vercel, check that a Redis store is connected under Storage and that the last deployment succeeded, then reload. Everything saved here is carried up once it responds.`
+          : 'Set <code>RELAY_URL</code> near the top of this file (see SETUP.md). Everything already saved here is carried over automatically.')
       : 'Ask the CrossCore team to finish the shared-database setup.'}</span></div>
   </div>`;
 }
@@ -2140,6 +2146,15 @@ document.getElementById('signOut').addEventListener('click', ()=>{
 /* ================= BOOT ================= */
 (async function boot(){
   let shared=null, adopted=null;
+  if(backendType==='relay'){
+    /* prove the backend is really there before trusting it with the data */
+    try{ await relayLoad(true); }
+    catch(e){
+      relayError = e.message;
+      try{ const t='__ccopc__'; window.localStorage.setItem(t,'1'); window.localStorage.removeItem(t); backendType='local'; }
+      catch(e2){ backendType='memory'; memoryOnly=true; }
+    }
+  }
   if(backendType==='relay'){
     adopted = await loadState().catch(()=>null);
     shared = adopted;
