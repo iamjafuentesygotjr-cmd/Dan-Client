@@ -208,6 +208,59 @@ td .p-pos{font-size:11.5px;color:var(--muted);max-width:260px;overflow:hidden;te
 /* section titles */
 .sec-title{font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:26px 0 12px}
 
+/* ---------- project chat ---------- */
+.chat-fab{position:fixed;right:22px;bottom:22px;z-index:40;width:56px;height:56px;border-radius:50%;
+  background:var(--ink);border:none;display:none;align-items:center;justify-content:center;
+  box-shadow:0 12px 30px -8px rgba(22,19,16,.55);transition:transform .16s, background .16s}
+.chat-fab:hover{background:var(--ink-3);transform:translateY(-2px)}
+#appShell.on ~ .chat-fab{display:flex}
+#appShell:not(.on) ~ .chat-panel{display:none!important}
+.chat-fab .fab-badge{position:absolute;top:-3px;right:-3px;min-width:21px;height:21px;padding:0 6px;border-radius:11px;
+  background:var(--gold);color:var(--ink);font-family:'Archivo';font-weight:800;font-size:11px;
+  display:none;align-items:center;justify-content:center;border:2.5px solid var(--paper)}
+.chat-fab.has-unread .fab-badge{display:flex}
+.chat-panel{position:fixed;right:22px;bottom:22px;z-index:45;width:372px;max-width:calc(100vw - 32px);
+  height:min(560px,calc(100vh - 44px));background:var(--card);border-radius:18px;overflow:hidden;
+  box-shadow:0 30px 70px -18px rgba(22,19,16,.45),0 0 0 1px var(--line);
+  display:none;flex-direction:column;opacity:0;transform:translateY(10px) scale(.98);transition:.16s}
+.chat-panel.on{display:flex;opacity:1;transform:none}
+.chat-head{background:var(--ink);color:#fff;padding:14px 14px 13px 16px;display:flex;align-items:center;gap:10px;flex:none}
+.chat-head .ch-t{font-family:'Archivo';font-weight:700;font-size:14.5px;letter-spacing:.01em}
+.chat-head .ch-s{font-size:11.5px;color:#A9A192;margin-top:1px}
+.chat-head .ch-x{margin-left:auto;background:none;border:none;color:#A9A192;font-size:21px;line-height:1;padding:0 2px}
+.chat-head .ch-x:hover{color:#fff}
+.chat-body{flex:1;overflow-y:auto;padding:16px 14px 6px;background:var(--paper);display:flex;flex-direction:column;gap:9px}
+.chat-day{align-self:center;background:var(--card);border:1px solid var(--line-soft);color:var(--muted);
+  font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 10px;border-radius:9px;margin:6px 0 2px}
+.msg{max-width:84%;display:flex;flex-direction:column;gap:3px}
+.msg.mine{align-self:flex-end;align-items:flex-end}
+.msg.theirs{align-self:flex-start}
+.msg-who{font-size:10.5px;color:var(--muted);font-weight:600;padding:0 3px}
+.msg-row{display:flex;align-items:flex-start;gap:5px}
+.msg.mine .msg-row{flex-direction:row-reverse}
+.bubble{padding:9px 12px;border-radius:13px;font-size:13.2px;line-height:1.48;white-space:pre-wrap;word-break:break-word}
+.msg.theirs .bubble{background:var(--card);border:1px solid var(--line);color:var(--body);border-bottom-left-radius:5px}
+.msg.mine .bubble{background:var(--gold-soft);border:1px solid #EBD79A;color:var(--ink);border-bottom-right-radius:5px}
+.bubble.gone{background:transparent;border:1px dashed var(--line);color:var(--muted);font-style:italic;font-size:12.5px}
+.msg-del{background:none;border:none;color:var(--muted);opacity:0;padding:4px 2px;transition:.14s;flex:none}
+.msg:hover .msg-del{opacity:.75}
+.msg-del:hover{opacity:1;color:var(--danger)}
+.msg-time{font-size:10px;color:var(--muted);padding:0 4px}
+.chat-empty{margin:auto;text-align:center;color:var(--muted);padding:26px 18px}
+.chat-empty b{display:block;font-family:'Archivo';color:var(--ink);font-size:14px;margin-bottom:5px}
+.chat-empty span{font-size:12.5px;line-height:1.55}
+.chat-foot{flex:none;border-top:1px solid var(--line);background:var(--card);padding:10px 11px 11px;display:flex;gap:8px;align-items:flex-end}
+#chatInput{flex:1;resize:none;border:1.5px solid var(--line);border-radius:11px;padding:9px 11px;
+  font-size:13.2px;line-height:1.45;max-height:112px;min-height:38px;background:var(--paper);color:var(--ink);outline:none}
+#chatInput:focus{border-color:var(--gold-deep);background:#fff}
+.chat-send{flex:none;width:38px;height:38px;border-radius:11px;background:var(--gold);border:none;
+  display:flex;align-items:center;justify-content:center;transition:.15s}
+.chat-send:hover{background:#E8AF06}
+.chat-send:disabled{background:var(--gray-soft);cursor:default}
+@media (max-width:560px){
+  .chat-panel{right:10px;left:10px;bottom:10px;width:auto;height:min(72vh,calc(100vh - 20px))}
+  .chat-fab{right:16px;bottom:16px}
+}
 @media (max-width:900px){
   .shell.on{flex-direction:column}
   .side{width:100%;height:auto;position:static;flex-direction:row;align-items:center;flex-wrap:wrap}
@@ -272,6 +325,25 @@ td .p-pos{font-size:11.5px;color:var(--muted);max-width:260px;overflow:hidden;te
   <div class="main">
     <div class="topbar"></div>
     <div class="page" id="pageRoot"></div>
+  </div>
+</div>
+
+<!-- ============ PROJECT CHAT ============ -->
+<button class="chat-fab" id="chatFab" type="button" aria-label="Open project chat">
+  <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M3.5 9.2c0-2.4 1.9-4.3 4.3-4.3h6.4c2.4 0 4.3 1.9 4.3 4.3v2.6c0 2.4-1.9 4.3-4.3 4.3H9.6l-3.9 2.8a.5.5 0 01-.8-.4v-2.6a4.3 4.3 0 01-1.4-3.2V9.2z" fill="#F2B90D"/><circle cx="8.3" cy="10.5" r="1.05" fill="#161310"/><circle cx="11" cy="10.5" r="1.05" fill="#161310"/><circle cx="13.7" cy="10.5" r="1.05" fill="#161310"/></svg>
+  <span class="fab-badge" id="chatBadge">0</span>
+</button>
+<div class="chat-panel" id="chatPanel" role="dialog" aria-label="Project chat">
+  <div class="chat-head">
+    <div><div class="ch-t">Project chat</div><div class="ch-s" id="chatWho">CrossCore VA &harr; Kallista</div></div>
+    <button class="ch-x" id="chatClose" type="button" aria-label="Close chat">&times;</button>
+  </div>
+  <div class="chat-body" id="chatBody"></div>
+  <div class="chat-foot">
+    <textarea id="chatInput" rows="1" placeholder="Write a message&hellip;" maxlength="4000"></textarea>
+    <button class="chat-send" id="chatSend" type="button" aria-label="Send" disabled>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2.4 13.6L14 8 2.4 2.4l.1 4.3L10 8l-7.5 1.3-.1 4.3z" fill="#161310"/></svg>
+    </button>
   </div>
 </div>
 
@@ -430,6 +502,7 @@ function freshState(){
   return {
     lists, prospects,
     activity:[{id:uid(),ts:now,user:'System',action:'import',detail:`Imported ${prospects.length} prospects from "Tier 2 Community Leads DM Outreach" workbook`}],
+    messages:[], chatRead:{team:0,client:0},
     passcodes:{admin:'7421',member:'1500',viewer:'0000'},
     defaultCodes:true
   };
@@ -474,8 +547,17 @@ async function persist(){
   /* advance past whatever revision is already in the centralized store so a
      portal that loaded earlier can never tie with or roll back another's save */
   try{
-    if(backendType==='supabase'){ const r = await supaLoad(true); if(r && (r.rev||0) >= (S.rev||0)) S.rev = r.rev; }
-    else if(backendType==='claude'){ const remote = await readShared(); if(remote && (remote.rev||0) >= (S.rev||0)) S.rev = remote.rev; }
+    if(backendType==='supabase'){
+      const r = await supaLoad(true);
+      if(r && (r.rev||0) >= (S.rev||0)){
+        S.rev = r.rev;
+        /* somebody else wrote since we loaded — pull their copy and fold any
+           chat messages in so this save can't clobber them */
+        try{ reconcileChat(await supaLoad()); }catch(e2){}
+      }
+    }
+    else if(backendType==='claude'){ const remote = await readShared(); if(remote){ if((remote.rev||0) >= (S.rev||0)) S.rev = remote.rev; reconcileChat(remote); } }
+    else if(backendType==='local'){ reconcileChat(readLocal()); }
   }catch(e){}
   S.rev = (S.rev||0)+1;
   S.savedAt = Date.now();
@@ -540,6 +622,9 @@ async function loadState(){
 let lastSyncAt = null;
 function typingNow(){
   const a=document.activeElement;
+  /* the chat composer keeps its draft in chatDraft, so a sync can safely land
+     underneath it — everything else still blocks the swap */
+  if(a && a.id==='chatInput') return false;
   return a && (a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.tagName==='SELECT');
 }
 async function refreshFromStorage(){
@@ -559,11 +644,41 @@ async function refreshFromStorage(){
     else { fresh = readLocal(); }
     lastSyncAt = Date.now();
     updateSyncStat();
-    if(fresh && S && (fresh.rev||0) > (S.rev||0)){
+    if(fresh && S){
+      const me = myPortal();
+      const seenTs = chatMsgs().filter(m=>m.from!==me).reduce((a,m)=>Math.max(a,m.ts),0);
+      const newer = (fresh.rev||0) > (S.rev||0);
       /* don't yank the UI out from under an open form or active typing — retry on next poll */
-      if(document.getElementById('overlay').classList.contains('on') || typingNow()) return;
-      S = fresh;
-      if(session){ render(); toast('Synced — latest updates from ' + esc(fresh.savedBy||'the team') + ' loaded'); }
+      const busy = document.getElementById('overlay').classList.contains('on') || typingNow();
+      let touched = false;
+      if(newer && !busy){
+        const localThread = {messages: chatMsgs().slice(), chatRead: Object.assign({}, S.chatRead||{})};
+        S = fresh;
+        ensureChat();
+        /* fold anything we sent that this copy never saw back in, then republish it */
+        const r = reconcileChat(localThread);
+        if(r.gained) persist();
+        if(session) render();
+        touched = true;
+        if(session && !chatOpen) toast('Synced — latest updates from ' + esc(fresh.savedBy||'the team') + ' loaded');
+      } else {
+        /* same or older revision, or the UI is busy — still reconcile the thread so a
+           simultaneous send on both sides can never disappear */
+        const r = reconcileChat(fresh);
+        if(r.ahead && (r.gained || !newer)) persist();
+        if(r.gained){ if(session) renderChat(); touched = true; }
+      }
+      if(touched && session){
+        const incoming = chatMsgs().filter(m=>m.from!==me && !m.deleted && m.ts>seenTs);
+        if(incoming.length){
+          if(chatOpen){ markChatRead(); renderChat(); }
+          else{
+            const last = incoming[incoming.length-1];
+            const body = (last.text||'').slice(0,58);
+            toast(`<b>${esc(last.name||CHAT_NAME[last.from]||'New message')}</b> — ${esc(body)}${(last.text||'').length>58?'…':''}`);
+          }
+        }
+      }
     }
   }catch(e){
     if(backendType==='supabase'){ cloudDown=true; updateSyncStat(); }
@@ -984,6 +1099,7 @@ function listModal(list){
 /* ================= RENDER ================= */
 function render(){
   renderNav();
+  renderChat();
   const root = document.getElementById('pageRoot');
   if(view==='dashboard') root.innerHTML = renderDashboard();
   else if(view.startsWith('list:')) root.innerHTML = renderList(view.slice(5));
@@ -1142,6 +1258,166 @@ document.getElementById('overlay').addEventListener('click', e=>{ if(e.target.id
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal();
   if(e.key==='Enter' && e.target.closest('.role-opt')) e.target.closest('.role-opt').click(); });
 
+/* ================= PROJECT CHAT =================
+   One shared thread between the CrossCore VA workspace and the client portal.
+   Messages ride along in the same synced state document, so both portals see
+   them within one poll. Deletes are soft (tombstoned) so a merge can never
+   resurrect a removed message. */
+const CHAT_NAME = {team:'CrossCore VA', client:'Kallista'};
+let chatOpen = false, chatDraft = '', chatReadTimer = null;
+
+function ensureChat(){
+  let changed = false;
+  if(!Array.isArray(S.messages)){ S.messages = []; changed = true; }
+  if(!S.chatRead || typeof S.chatRead !== 'object'){ S.chatRead = {team:0, client:0}; changed = true; }
+  return changed;
+}
+const myPortal = () => (session && session.portal) ? session.portal : 'team';
+const chatMsgs = () => (S && Array.isArray(S.messages)) ? S.messages : [];
+function chatUnread(){
+  const me = myPortal(), since = (S.chatRead && S.chatRead[me]) || 0;
+  return chatMsgs().filter(m => m.from !== me && !m.deleted && m.ts > since).length;
+}
+/* Two-way reconcile of the shared thread. Both portals save the whole state
+   document, so a message can only survive a simultaneous save if each side
+   folds the other's messages in rather than overwriting. Returns how many we
+   took from `other` and whether we still hold something `other` has not seen. */
+function reconcileChat(other){
+  if(!S) return {gained:0, ahead:false};
+  ensureChat();
+  if(!other || !Array.isArray(other.messages)) return {gained:0, ahead:false};
+  const mine = {}; S.messages.forEach(m => mine[m.id] = m);
+  let gained = 0;
+  other.messages.forEach(m => {
+    const ex = mine[m.id];
+    if(!ex){ S.messages.push(m); mine[m.id] = m; gained++; }
+    else if(m.deleted && !ex.deleted){ ex.deleted = true; delete ex.text; gained++; }
+  });
+  if(gained) S.messages.sort((a,b) => a.ts - b.ts);
+  const theirs = {}; other.messages.forEach(m => theirs[m.id] = m);
+  const ahead = S.messages.some(m => { const t = theirs[m.id]; return !t || (m.deleted && !t.deleted); });
+  const r = other.chatRead || {};
+  S.chatRead = S.chatRead || {};
+  ['team','client'].forEach(k => S.chatRead[k] = Math.max(S.chatRead[k]||0, r[k]||0));
+  return {gained, ahead};
+}
+const linkify = s => esc(s).replace(/(https?:\/\/[^\s<]+)/g,
+  u => `<a href="${u}" target="_blank" rel="noopener noreferrer" style="color:var(--blue);text-decoration:underline">${u}</a>`);
+const chatTime = ts => new Date(ts).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+function chatDayLabel(ts){
+  const d = dayKey(ts);
+  if(d === todayKey()) return 'Today';
+  const y = new Date(); y.setDate(y.getDate()-1);
+  if(d === dayKey(y.getTime())) return 'Yesterday';
+  return new Date(ts).toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric'});
+}
+function renderChat(){
+  const fab = document.getElementById('chatFab');
+  const body = document.getElementById('chatBody');
+  if(!fab || !body || !S) return;
+  const n = chatUnread();
+  fab.classList.toggle('has-unread', n>0);
+  document.getElementById('chatBadge').textContent = n>9 ? '9+' : String(n);
+  const who = document.getElementById('chatWho');
+  if(who) who.innerHTML = myPortal()==='team'
+    ? 'You are <b style="color:#fff;font-weight:700">CrossCore VA</b> &middot; talking to Kallista'
+    : 'You are <b style="color:#fff;font-weight:700">Kallista</b> &middot; talking to CrossCore VA';
+  if(!chatOpen) return;
+
+  const me = myPortal();
+  const msgs = chatMsgs().slice().sort((a,b)=>a.ts-b.ts);
+  if(!msgs.length){
+    body.innerHTML = `<div class="chat-empty"><b>No messages yet</b>
+      <span>This thread is shared between the CrossCore VA workspace and the client portal.
+      Anything sent here shows up on the other side within a few seconds.</span></div>`;
+    return;
+  }
+  const nearBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 90;
+  let html = '', lastDay = '';
+  msgs.forEach(m => {
+    const dk = dayKey(m.ts);
+    if(dk !== lastDay){ html += `<div class="chat-day">${esc(chatDayLabel(m.ts))}</div>`; lastDay = dk; }
+    const mine = m.from === me;
+    html += `<div class="msg ${mine?'mine':'theirs'}">
+      <div class="msg-who">${esc(mine ? 'You' : (m.name || CHAT_NAME[m.from] || 'Them'))}</div>
+      <div class="msg-row">
+        <div class="bubble${m.deleted?' gone':''}">${m.deleted ? 'Message deleted' : linkify(m.text)}</div>
+        ${(mine && !m.deleted) ? `<button class="msg-del" data-delmsg="${m.id}" title="Delete message" type="button">
+          <svg width="12" height="12" viewBox="0 0 13 13" fill="none"><path d="M2.6 3.6h7.8M5.2 3.6V2.5h2.6v1.1M3.6 3.6V10a1 1 0 001 1h3.8a1 1 0 001-1V3.6" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></svg></button>` : ''}
+      </div>
+      <div class="msg-time">${esc(chatTime(m.ts))}</div>
+    </div>`;
+  });
+  body.innerHTML = html;
+  if(nearBottom || !body.dataset.init){ body.scrollTop = body.scrollHeight; body.dataset.init = '1'; }
+}
+function markChatRead(){
+  if(!S) return;
+  ensureChat();
+  const me = myPortal();
+  const latest = chatMsgs().reduce((a,m)=>Math.max(a,m.ts), 0);
+  if((S.chatRead[me]||0) >= latest) return;
+  S.chatRead[me] = Math.max(latest, Date.now());
+  clearTimeout(chatReadTimer);
+  chatReadTimer = setTimeout(()=>persist(), 1200);   /* batch: don't write on every poll */
+}
+function openChat(){
+  chatOpen = true;
+  document.getElementById('chatPanel').classList.add('on');
+  markChatRead();
+  renderChat();
+  const ta = document.getElementById('chatInput');
+  ta.value = chatDraft; autoGrow(ta); syncSendBtn();
+  setTimeout(()=>ta.focus(), 60);
+}
+function closeChat(){
+  chatOpen = false;
+  document.getElementById('chatPanel').classList.remove('on');
+  renderChat();
+}
+function autoGrow(ta){ ta.style.height='auto'; ta.style.height = Math.min(ta.scrollHeight, 112)+'px'; }
+function syncSendBtn(){
+  const ta = document.getElementById('chatInput');
+  document.getElementById('chatSend').disabled = !ta.value.trim();
+}
+async function sendChat(){
+  const ta = document.getElementById('chatInput');
+  const text = ta.value.trim();
+  if(!text || !S) return;
+  ensureChat();
+  const me = myPortal();
+  S.messages.push({id:uid(), ts:Date.now(), from:me, name:CHAT_NAME[me], text});
+  S.chatRead[me] = Date.now();
+  chatDraft = ''; ta.value = ''; autoGrow(ta); syncSendBtn();
+  renderChat();
+  const body = document.getElementById('chatBody');
+  if(body) body.scrollTop = body.scrollHeight;
+  await persist();
+  renderChat();
+}
+function deleteChatMsg(id){
+  const m = chatMsgs().find(x => x.id === id);
+  if(!m || m.from !== myPortal() || m.deleted) return;
+  m.deleted = true; delete m.text;
+  persist(); renderChat(); toast('Message deleted');
+}
+document.getElementById('chatFab').addEventListener('click', ()=> chatOpen ? closeChat() : openChat());
+document.getElementById('chatClose').addEventListener('click', closeChat);
+document.getElementById('chatSend').addEventListener('click', sendChat);
+document.getElementById('chatBody').addEventListener('click', e=>{
+  const b = e.target.closest('[data-delmsg]');
+  if(b) deleteChatMsg(b.dataset.delmsg);
+});
+document.getElementById('chatInput').addEventListener('input', e=>{
+  chatDraft = e.target.value; autoGrow(e.target); syncSendBtn();
+});
+document.getElementById('chatInput').addEventListener('keydown', e=>{
+  if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendChat(); }
+});
+document.addEventListener('keydown', e=>{
+  if(e.key === 'Escape' && chatOpen && !document.getElementById('overlay').classList.contains('on')) closeChat();
+});
+
 /* ================= TODAY'S DIGEST (client notification) ================= */
 let sinceSnap = null; /* computed at client portal entry, before the visit is recorded */
 function sinceStats(ts){
@@ -1227,7 +1503,11 @@ function enterPortal(portal){
   document.getElementById('userAvatar').textContent = portal==='team' ? 'C' : 'D';
   document.getElementById('loginView').style.display='none';
   document.getElementById('appShell').classList.add('on');
-  view='dashboard'; render();
+  view='dashboard';
+  chatDraft=''; chatOpen=false;
+  const cb=document.getElementById('chatBody'); if(cb) delete cb.dataset.init;
+  document.getElementById('chatPanel').classList.remove('on');
+  render();
   if(portal==='client'){
     sinceSnap = sinceStats(S.lastClientVisit);
     S.lastClientVisit = Date.now();
@@ -1240,7 +1520,8 @@ function enterPortal(portal){
 }
 document.querySelectorAll('[data-portal]').forEach(b=>b.addEventListener('click', ()=>enterPortal(b.dataset.portal)));
 document.getElementById('signOut').addEventListener('click', ()=>{
-  session=null;
+  session=null; chatOpen=false; chatDraft='';
+  document.getElementById('chatPanel').classList.remove('on');
   document.getElementById('appShell').classList.remove('on');
   document.getElementById('loginView').style.display='flex';
 });
@@ -1261,6 +1542,7 @@ document.getElementById('signOut').addEventListener('click', ()=>{
   else { S = freshState(); needWrite = true; }
   if(applyGrowToro()) needWrite = true;
   if(applySept2026()) needWrite = true;
+  if(ensureChat()) needWrite = true;
   if(needWrite) await persist();
   lastSyncAt = Date.now();
   updateSyncStat();
