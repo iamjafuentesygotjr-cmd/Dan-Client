@@ -1125,16 +1125,14 @@ function renderNotifySettings(){
         <input id="ntfToken" type="text" placeholder="matches DESK_TOKEN in the worker" value="${esc(n.token||'')}"></div>`}
       <div class="ntf-f"><label>Address of this app</label>
         <input id="ntfApp" type="url" placeholder="https://prospects.crosscore.com/" value="${esc(n.appUrl||'')}"></div>
-      <div class="ntf-f"><label>Notify ${esc(R.team.name||'the VA')} at</label>
+      <div class="ntf-f"><label>Email ${esc(R.team.name||'the VA')} at</label>
         <input id="ntfTeamEmail" type="email" value="${esc(R.team.email||'')}" ${RELAY_URL?'disabled title="Set by EMAIL_TEAM in the worker"':''}></div>
-      <div class="ntf-f"><label>Notify ${esc(R.client.name||'the client')} at</label>
+      <div class="ntf-f"><label>Email ${esc(R.client.name||'the client')} at</label>
         <input id="ntfClientEmail" type="email" value="${esc(R.client.email||'')}" ${RELAY_URL?'disabled title="Set by EMAIL_CLIENT in the worker"':''}></div>
     </div>
     <div class="ntf-row">
       <label style="display:flex;align-items:center;gap:7px;font-size:13px">
         <input type="checkbox" id="ntfOn" ${n.enabled?'checked':''}> <b>Send notifications</b></label>
-      <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted)">
-        <input type="checkbox" id="ntfSms" ${R.team.smsEnabled?'checked':''}> Also SMS ${esc(R.team.sms||'')} (needs an SMS provider in the relay)</label>
       <button class="btn btn-gold btn-sm" id="ntfSave" style="width:auto;margin-left:auto">Save</button>
       <button class="btn btn-sm" id="ntfTest" style="width:auto">Send test</button>
     </div>
@@ -1861,8 +1859,8 @@ const NTF_DEFAULTS = {
   quietSeconds:60,      /* one notification per burst */
   activeSeconds:120,    /* silence if they are already reading */
   recipients:{
-    team:  {name:'JA (CrossCore VA)',   email:'ja.crosscore@gmail.com',  sms:'+639355081996', smsEnabled:false},
-    client:{name:'Kallista Capparelli', email:'kc7@signaturelocker.com', sms:'',              smsEnabled:false}
+    team:  {name:'JA (CrossCore VA)',   email:'ja.crosscore@gmail.com'},
+    client:{name:'Kallista Capparelli', email:'kc7@signaturelocker.com'}
   }
 };
 function ensureNotify(){
@@ -1878,6 +1876,11 @@ function ensureNotify(){
   /* a deployed relay means notifications are wanted — switch them on once,
      rather than leaving a hidden toggle that silently sends nothing */
   if(RELAY_URL && !n.relayOn){ n.enabled = true; n.relayOn = true; changed = true; }
+  /* email-only: clear any phone number left over from an earlier version */
+  ['team','client'].forEach(p=>{
+    const r = n.recipients[p];
+    if(r && ('sms' in r || 'smsEnabled' in r)){ delete r.sms; delete r.smsEnabled; changed = true; }
+  });
   return changed;
 }
 function ntfLog(status, to, detail){
@@ -1899,7 +1902,7 @@ function buildNotice(msg){
   const r  = n.recipients[to] || {};
   if(!n.enabled)          return {skip:'notifications are switched off'};
   if(!n.url)              return {skip:'no relay URL configured'};
-  if(!r.email && !(r.smsEnabled && r.sms)) return {skip:'no address on file for '+(r.name||to)};
+  if(!r.email) return {skip:'no email address on file for '+(r.name||to)};
   const now = Date.now();
   const readAt = (S.chatRead && S.chatRead[to]) || 0;
   if(now - readAt < (n.activeSeconds||120)*1000)
@@ -1916,9 +1919,8 @@ function buildNotice(msg){
     event: 'chat_message',
     sentAt: msg.ts,
     from: {portal: msg.from, name: msg.name || CHAT_NAME[msg.from]},
-    to:   {portal: to, name: r.name || CHAT_NAME[to], email: r.email || '',
-           sms: (r.smsEnabled && r.sms) ? r.sms : ''},
-    channels: [r.email ? 'email' : null, (r.smsEnabled && r.sms) ? 'sms' : null].filter(Boolean),
+    to:   {portal: to, name: r.name || CHAT_NAME[to], email: r.email || ''},
+    channels: ['email'],
     preview: (msg.text||'').slice(0, 280),
     unreadCount: unread.length,
     messages: unread,
@@ -1943,7 +1945,7 @@ async function notifyChat(msg){
   try{
     await postNotice(p);
     S.notify.lastSent[p.to.portal] = Date.now();
-    ntfLog('sent', p.to.portal, p.channels.join(' + ') + ' · ' + (p.to.email||p.to.sms));
+    ntfLog('sent', p.to.portal, 'email · ' + p.to.email);
   }catch(e){
     /* hold it and try again on the next poll rather than losing the alert */
     S.notify.queue.push({tries:1, at:Date.now(), payload:p});
@@ -1987,8 +1989,8 @@ async function sendTestNotice(){
   const r = S.notify.recipients[to]||{};
   const p = {id:uid(), event:'test', sentAt:Date.now(),
     from:{portal:myPortal(), name:CHAT_NAME[myPortal()]},
-    to:{portal:to, name:r.name||to, email:r.email||'', sms:(r.smsEnabled&&r.sms)?r.sms:''},
-    channels:[r.email?'email':null,(r.smsEnabled&&r.sms)?'sms':null].filter(Boolean),
+    to:{portal:to, name:r.name||to, email:r.email||''},
+    channels:['email'],
     preview:'Test alert from the Prospect Desk — notifications are wired up correctly.',
     unreadCount:1,
     messages:[{from:CHAT_NAME[myPortal()], ts:Date.now(), text:'Test alert from the Prospect Desk — notifications are wired up correctly.'}],
@@ -1996,8 +1998,8 @@ async function sendTestNotice(){
   toast('Sending test…');
   try{
     await postNotice(p);
-    ntfLog('sent', to, 'test alert · ' + (p.to.email||p.to.sms));
-    toast(`Test sent to <b>${esc(p.to.email||p.to.sms)}</b>`);
+    ntfLog('sent', to, 'test alert · ' + p.to.email);
+    toast(`Test sent to <b>${esc(p.to.email)}</b>`);
   }catch(e){
     ntfLog('failed', to, 'test — ' + e.message);
     toast('⚠ Test failed — ' + esc(e.message));
@@ -2022,7 +2024,6 @@ document.addEventListener('click', e=>{
       S.notify.recipients.client.email = (g('ntfClientEmail')||'').trim();
     }
     S.notify.enabled = !!(document.getElementById('ntfOn')||{}).checked;
-    S.notify.recipients.team.smsEnabled = !!(document.getElementById('ntfSms')||{}).checked;
     addActivity('list', `Chat notifications ${S.notify.enabled?'switched on':'switched off'}`);
     persist(); render(); toast('Notification settings saved');
   } else { sendTestNotice(); }
