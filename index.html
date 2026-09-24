@@ -610,7 +610,24 @@ async function relaySave(state){
   if(!res.ok) throw new Error('relay write ' + res.status);
   const j = await res.json().catch(()=>({}));
   if(j && j.rev) state.rev = j.rev;      /* the worker owns the revision counter */
+  if(j && Array.isArray(j.notified) && j.notified.length) recordServerNotices(j.notified);
   return j;
+}
+/* The server sends the emails, so it is the only thing that knows whether one
+   went out. Pull its verdict into the delivery log so a silent failure is
+   impossible to miss. */
+function recordServerNotices(list){
+  try{
+    ensureNotify();
+    let changed = false;
+    list.forEach(n=>{
+      const who = n.to || '-';
+      if(n.sent){ ntfLog('sent', who, 'email sent by the server'); changed = true; }
+      else if(n.skipped){ ntfLog('skipped', who, n.skipped); changed = true; }
+      else if(n.error){ ntfLog('failed', who, n.error); changed = true; }
+    });
+    if(changed && session && view==='integration') render();
+  }catch(e){}
 }
 
 /* ---- cloud database helpers (Supabase REST, single-row JSON document) ---- */
