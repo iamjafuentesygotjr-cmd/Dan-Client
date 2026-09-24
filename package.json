@@ -2,5 +2,8 @@
   "name": "crosscore-prospect-desk",
   "private": true,
   "type": "module",
-  "description": "CrossCore Prospect Desk — static desk plus Vercel Functions for the shared database and chat notifications"
+  "description": "CrossCore Prospect Desk — static desk plus Vercel Functions for the shared database and chat notifications",
+  "dependencies": {
+    "nodemailer": "^10.0.10"
+  }
 }

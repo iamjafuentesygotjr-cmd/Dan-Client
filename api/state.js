@@ -3,7 +3,7 @@
  * GET  /api/state        → {rev, data}    the whole database
  * POST /api/state        → {rev, notified}  save, then email anything new in the chat
  */
-import { readState, writeState, notifyNewMessages, storageReady, json, cors, tokenOk } from '../lib/desk.js';
+import { readState, readHead, writeState, notifyNewMessages, storageReady, json, cors, tokenOk } from '../lib/desk.js';
 
 export default {
   async fetch(request) {
@@ -15,9 +15,13 @@ export default {
 
     try {
       if (request.method === 'GET') {
-        const stored = await readState();
         const url = new URL(request.url);
-        if (url.searchParams.get('rev') === '1') return json({ rev: stored?.rev || 0 });
+        if (url.searchParams.get('rev') === '1') {
+          // the 5-second poll: reads one tiny key, never the leads
+          const head = await readHead();
+          return json({ rev: head?.rev || 0 });
+        }
+        const stored = await readState();
         return json({ rev: stored?.rev || 0, data: stored?.data || null });
       }
 
