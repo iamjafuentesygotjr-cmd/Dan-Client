@@ -2326,25 +2326,26 @@ function ivsFlags(p, P, cfg){
 }
 
 /* ---------- messages (playbook templates; never sent from here) ---------- */
-function ivsLink(p, cfg){ if(p.link) return p.link; var b = (cfg && cfg.surveyBase||'').trim(); if(!b) return ''; return b + (b.indexOf('?')>=0?'&':'?') + encodeURIComponent((cfg.surveyParam||'contact').trim()||'contact') + '=' + encodeURIComponent(p.id); }
+var IVS_SURVEY_LINK = 'https://tally.so/r/M11Ld8';   /* the survey link Dan gave for the LinkedIn message */
+function ivsLink(p, cfg){ if(p.link) return p.link; var b = (cfg && cfg.surveyBase||'').trim(); if(!b) return IVS_SURVEY_LINK; if(!(cfg.surveyParam||'').trim()) return b; return b + (b.indexOf('?')>=0?'&':'?') + encodeURIComponent((cfg.surveyParam||'contact').trim()||'contact') + '=' + encodeURIComponent(p.id); }
 function ivsSender(p){ return p.sender||''; }
 function ivsPersonal(p){ var s = String(p.personal||'').trim(); return s ? (/[.!?]$/.test(s) ? s : s+'.') + ' ' : ''; }
 function ivsFill(text, p, cfg){
   var link = ivsLink(p, cfg), sender = ivsSender(p), miss = [];
-  if(!link) miss.push('survey link'); if(!sender) miss.push('sender');
+  if(!link && text.indexOf('[survey link]')>=0) miss.push('survey link'); if(!sender && /\[(Sender|Name)\]/.test(text)) miss.push('sender');
   var out = text.replace(/\[First name\]/g, p.first||ivsFirst(p.name)).replace(/\[survey link\]/g, link||'[survey link]').replace(/\[Sender\]/g, sender||'[Sender]')
     .replace(/\[Name\]/g, sender||'[Name]').replace(/\[Firm\]/g, p.company||'[Firm]');
   return {text:out, miss:miss};
 }
 var IVS_TPL = {
   linkedin:'Hi [First name], [P]we’re surveying investors and operators doing youth sports deals for our Youth Sports Market Outlook 2027, and I’d value your take. It’s about 7 minutes: [survey link]. You’d get the Outlook a week early plus an invite to a private briefing. Thanks, [Sender]',
-  connect:'Hi [First name], [P]we’re surveying investors and operators doing youth sports deals for our Youth Sports Market Outlook 2027. Glad to share the 7-minute survey once we connect. [Sender]',
+  connect:'Hi [First name], [P]we’re surveying investors and operators doing youth sports deals for our Youth Sports Market Outlook 2027, and I’d value your take. It’s about 7 minutes: [survey link]. You’d get the Outlook a week early plus an invite to a private briefing. Thanks, - Dan',
   followup:'Hi [First name], I wanted to follow up on the Youth Sports Market Outlook survey. It takes about 7 minutes, and here’s the link: [survey link]. Everyone who takes part gets the Outlook a week early and an invite to the private briefing in January. Thanks, [Sender]',
   final:'Hi [First name], the survey for the Youth Sports Market Outlook 2027 closes Friday, December 18. If you have 7 minutes this week, I’d still love your view: [survey link]. Thanks, [Sender]',
   thanks:'Hi [First name], thank you for taking the survey. We’ll send you the Outlook a week before it’s public, along with an invite to the private briefing in January.[CALL] Thanks, [Sender]',
   email1:'Subject: Your take on where youth sports is heading\n\nHi [First name],\n\n[P]\n\nSignature Media is publishing the Youth Sports Market Outlook 2027 in January. It’s built on a survey of investors and operators who are actively doing deals in youth sports, and I’d value your perspective in it.\n\nIt takes about 7 minutes: [survey link]\n\nEveryone who takes part gets the Outlook a week before it’s public and an invite to a private briefing on the findings. Answers are reported only in aggregate unless you choose to be quoted.\n\nThanks, [Sender]',
   email2:'Subject: Youth Sports Market Outlook 2027: would value your view\n\nHi [First name],\n\nI’m [Name] at Signature Athletics. [P]\n\nWe’re publishing the Youth Sports Market Outlook 2027 in January, built on a survey of investors and operators who are actively doing deals in youth sports. Your perspective would add a lot to it.\n\nIt takes about 7 minutes: [survey link]\n\nEveryone who takes part gets the Outlook a week before it’s public and an invite to a private briefing on the findings. Answers are reported only in aggregate unless you choose to be quoted.\n\nThanks, [Name]'};
-var IVS_TPL_LABEL = {linkedin:'Full survey message (LinkedIn, client-approved)', connect:'Short connection note', followup:'Follow-up (7 days later, same channel)', final:'Final note / last call (other channel)', thanks:'Thank-you (within 2 business days)', email1:'Tier 1 email (from Dan / senior leader)', email2:'Tier 2 email (from an engagement team member)'};
+var IVS_TPL_LABEL = {linkedin:'Full survey message (LinkedIn, client-approved)', connect:'Connection note (LinkedIn message, any tier)', followup:'Follow-up (7 days later, same channel)', final:'Final note / last call (other channel)', thanks:'Thank-you (within 2 business days)', email1:'Tier 1 email (from Dan / senior leader)', email2:'Tier 2 email (from an engagement team member)'};
 function ivsMsg(kind, p, cfg){
   var t = IVS_TPL[kind];
   if(kind==='linkedin' && p.msgCustom) t = p.msgCustom;
@@ -2730,7 +2731,7 @@ function ivsBulk(kind){ var ids = Object.keys(IVS.sel).filter(function(k){ retur
 function ivsOpenP(id){
   var D = ivsD(), p = D.P.find(function(x){ return x.id===id; }); if(!p) return; IVS.open = id; var team = ivsIsTeam(), role = ivsRole(), cfg = D.cfg||{};
   var fl = ivsFlags(p, D.P, cfg), canEdit = team || role==='client';
-  var msg = function(k){ var m = ivsMsg(k, p, cfg); return '<div class="ivs-msg"><div class="ivs-msgh"><b>'+IVS_TPL_LABEL[k]+'</b>'+(k==='connect'?' <span class="ivs-mut">'+m.text.length+' characters'+(m.text.length>IVS_SHORT_LIMIT?' — over 200 (needs LinkedIn Premium, limit 300)':'')+'</span>':'')+'<button class="ivs-btn sm" onclick="ivsCopyMsg(\''+p.id+'\',\''+k+'\')">Copy</button></div><pre>'+ivsEsc(m.text)+'</pre>'+(m.miss.length?'<div class="ivs-fl">Missing: '+m.miss.join(', ')+'</div>':'')+'</div>'; };
+  var msg = function(k){ var m = ivsMsg(k, p, cfg); return '<div class="ivs-msg"><div class="ivs-msgh"><b>'+IVS_TPL_LABEL[k]+'</b>'+(k==='connect'?' <span class="ivs-mut">'+m.text.length+' characters'+(m.text.length>300?' — over LinkedIn’s 300 limit: shorten the personal line':m.text.length>IVS_SHORT_LIMIT?' — over 200 (needs LinkedIn Premium, limit 300)':'')+'</span>':'')+'<button class="ivs-btn sm" onclick="ivsCopyMsg(\''+p.id+'\',\''+k+'\')">Copy</button></div><pre>'+ivsEsc(m.text)+'</pre>'+(m.miss.length?'<div class="ivs-fl">Missing: '+m.miss.join(', ')+'</div>':'')+'</div>'; };
   var ed = function(k, label, ta){ var v = p[k]||''; return '<div class="ivs-f"><label>'+label+'</label>'+(ta?'<textarea rows="3" id="ivsE_'+k+'">'+ivsEsc(v)+'</textarea>':'<input id="ivsE_'+k+'" value="'+ivsEsc(v)+'">')+'</div>'; };
   var senders = ivsUniq(((cfg.senders)||[]).concat(p.sender?[p.sender]:[]));
   var html = '<div class="ivs-pd"><div class="ivs-pdh"><div><h3>'+ivsEsc(p.name)+' '+ivsLi(p.url)+'</h3><div>'+ivsEsc(p.title)+' · <b>'+ivsEsc(p.company)+'</b></div><div class="ivs-mut">'+ivsEsc(p.location||'')+' · '+ivsEsc(p.industry)+'</div></div>'+
@@ -2785,7 +2786,7 @@ function ivsSendModal(id, w){
   var D = ivsD(), p = D.P.find(function(x){ return x.id===id; }); if(!p) return; var cfg = D.cfg||{};
   var li = w==='invite' ? (IVS.sendCh || (p.channel==='Email'?'Email':'LinkedIn'))==='LinkedIn' : (w==='final' ? p.channel==='Email' : p.channel!=='Email');
   var kind = w==='invite' ? (li ? 'connect' : (p.tier==='Tier 1'?'email1':'email2')) : w==='follow' ? 'followup' : 'final';
-  var m = ivsMsg(kind, p, cfg), lim = kind==='connect' ? '<span class="ivs-mut"> '+m.text.length+' characters'+(m.text.length>IVS_SHORT_LIMIT?' (over 200: needs LinkedIn Premium)':'')+'</span>' : '';
+  var m = ivsMsg(kind, p, cfg), lim = kind==='connect' ? '<span class="ivs-mut"> '+m.text.length+' characters'+(m.text.length>300?' (over LinkedIn\u2019s 300 limit: shorten the personal line)':m.text.length>IVS_SHORT_LIMIT?' (over 200: needs LinkedIn Premium)':'')+'</span>' : '';
   var title = (w==='invite' ? (li ? 'LinkedIn connection request' : 'Invitation email') : w==='follow' ? 'Follow-up' : 'Final note')+': '+p.name;
   ivsModal(title, (w==='invite'?'<div class="ivs-filt"><label class="ivs-mut">Channel</label><select onchange="IVS.sendCh=this.value;ivsSendModal(\''+id+'\',\'invite\')"><option'+(li?' selected':'')+'>LinkedIn</option><option'+(!li?' selected':'')+'>Email</option></select></div>':'<p class="ivs-mut">Channel: <b>'+(li?'LinkedIn':'Email')+'</b>'+(w==='final'?' (the other channel from the invite, per the playbook)':' (same channel as the invite)')+'</p>')+
     '<ol class="ivs-steps"><li>'+(li?'Copy the note, open '+ivsEsc(p.first)+'\u2019s profile, click <b>Connect \u2192 Add a note</b> and paste it.':'Copy the message and send it from '+ivsEsc(p.sender||'the sender')+'\u2019s own inbox.')+'</li><li>Send it from <b>'+ivsEsc(p.sender||'[assign a sender]')+'</b>\u2019s own account.</li><li>Come back and confirm it was sent. Only then is it counted, added to Dan\u2019s report and the targets.</li></ol>'+
