@@ -2242,7 +2242,17 @@ var IVS_CATS = {
   FO:{n:'Family Offices', invite:75, ms:[7,15,21,25]}, ST:{n:'Strategic Investors', invite:75, ms:[7,15,21,25]},
   OA:{n:'Operators and Acquirers', invite:120, ms:[12,24,34,40]}, OT:{n:'Angels, Sponsors & M&A Advisors', invite:0, ms:null}};
 var IVS_CAT_KEYS = ['PE','VC','FO','ST','OA','OT'];
-var IVS_TARGET = {invites:420, completes:140, tier1:100, tier2:320};
+var IVS_TARGET = {invites:420, completes:140, tier1:100, tier2:320, daily:16};   /* daily: confirmed engagement activities (about 80 per Tier 2 wave per week) */
+/* the desk's own statuses, so the survey segments track exactly like the other prospect lists */
+var IVS_DESK_LABEL = {NOT_CONNECTED:'Not connected', REQUEST_SENT:'Pending', CONNECTED:'Connected', RESPONDED:'Responded', FOLLOW_UP:'Follow-up'};
+var IVS_ACT_LABEL = {request:'LinkedIn connection request (with note)', invite:'Invitation email', follow:'Follow-up', final:'Final note', connected:'Connection accepted', responded:'Responded', completed:'Survey completed', thanks:'Thank-you sent', declined:'Declined'};
+var IVS_ACT_COUNTS = ['request','invite','follow','final','thanks'];   /* engagement activities that count toward the targets */
+function ivsDeskStatus(p, today){
+  if(p.completion==='Completed' || p.responded || p.status==='Responded') return 'RESPONDED';
+  if(p.accepted) return 'CONNECTED';
+  var li = p.channel!=='Email' && (p.touches||0) > 0;
+  if(li && ivsFollowDue(p, today)) return 'FOLLOW_UP';
+  return li ? 'REQUEST_SENT' : 'NOT_CONNECTED'; }
 var IVS_MS = [{d:'2026-11-13', t:40}, {d:'2026-11-27', t:84}, {d:'2026-12-11', t:118}, {d:'2026-12-18', t:140}];
 var IVS_SCHED = [
   {from:'2026-10-28', to:'2026-10-30', what:'Tier 1 invites', who:'Dan and senior leaders'},
@@ -2397,7 +2407,7 @@ function ivsApply(d, act, a, ctx){
     ivsRoles(d.ivs.P); ivsLog(d.ivs, by, ts, 'Investor Survey 2027 set up: '+d.ivs.P.length+' researched prospects imported as Needs Verification'); return true; }
   var D = d.ivs; if(!D) throw new Error('The Investor Survey 2027 list is not set up yet.');
   if(!ivsCanDo(role, act)) throw new Error('Your portal can’t make this change.');
-  if(act==='cfg'){ var c = D.cfg = D.cfg || {}; Object.keys(a).forEach(function(k){ if(['surveyBase','surveyParam','sheetUrl','senders','vas'].includes(k)) c[k] = a[k]; }); c.u = ts; c.ub = by; ivsLog(D, by, ts, 'Settings updated ('+Object.keys(a).join(', ')+')'); return true; }
+  if(act==='cfg'){ var c = D.cfg = D.cfg || {}; Object.keys(a).forEach(function(k){ if(['surveyBase','surveyParam','sheetUrl','senders','vas','dailyTarget','totalTarget'].includes(k)) c[k] = a[k]; }); c.u = ts; c.ub = by; ivsLog(D, by, ts, 'Settings updated ('+Object.keys(a).join(', ')+')'); return true; }
   if(act==='capOk'){ var f = String(a.company||'').trim().toLowerCase(); if(!f) throw new Error('Choose the firm.'); if(String(a.note||'').trim().length<3) throw new Error('Note how Kylee approved it.');
     D.cfg.capOk = D.cfg.capOk || {}; D.cfg.capOk[f] = {by:by, at:ts, note:a.note.trim()}; D.cfg.u = ts; ivsLog(D, by, ts, 'Firm-cap exception for '+a.company+' recorded (Kylee): '+a.note.trim()); return true; }
   if(act==='add'){
@@ -2458,30 +2468,51 @@ function ivsApply(d, act, a, ctx){
         if(!p.sender) throw new Error('Assign the sender first: every invite goes from a real person.');
         if(p.tier==='Tier 1' && p.approval!=='Approved') throw new Error('Tier 1: '+p.sender+' must approve this invite before it goes out.');
         var hard2 = ivsFlags(p, D.P, D.cfg||{}).filter(function(f){ return f.k==='bad'; }); if(hard2.length) throw new Error(hard2[0].t);
+        if(a.confirmed!==true) throw new Error('Send it from '+p.sender+'\u2019s own account first, then confirm it was actually sent. Nothing is counted until it is confirmed.');
       }
-      if(w==='invite'){ if(p.touches>=1) throw new Error('The invitation was already recorded.'); p.touches = 1; p.dInvite = today; p.channel = a.channel||p.channel||'LinkedIn'; p.status = 'Invitation Sent'; p.hubPending = true; }
+      if(w==='invite'){ if(p.touches>=1) throw new Error('The invitation was already recorded.'); p.touches = 1; p.dInvite = today; p.channel = a.channel||p.channel||'LinkedIn'; p.status = 'Invitation Sent'; p.hubPending = true; p.noteSent = String(a.note||'').trim(); p.sentAt = ts; p.prepared = null; }
       else if(w==='connected'){ if(!ivsInvited(p)) throw new Error('Record the invitation first.'); p.accepted = today; if(['Invitation Sent','Approved'].includes(p.status)) p.status = 'Connected'; }
       else if(w==='responded'){ if(!ivsInvited(p)) throw new Error('Record the invitation first.'); p.responded = today; p.status = 'Responded'; p.hubPending = true; }
-      else if(w==='follow'){ if(p.touches!==1) throw new Error(p.touches<1?'Record the invitation first.':'The follow-up was already sent.'); p.touches = 2; p.dFollow = today; p.status = 'Follow-Up Sent'; p.hubPending = true; }
-      else if(w==='final'){ if(p.touches!==2) throw new Error(p.touches<2?'The final note comes after the follow-up.':'Every contact gets at most three touches.'); p.touches = 3; p.dFinal = today; p.status = 'Final Note Sent'; p.finalChannel = (p.channel==='Email'?'LinkedIn':'Email'); p.hubPending = true; }
+      else if(w==='follow'){ if(p.touches!==1) throw new Error(p.touches<1?'Record the invitation first.':'The follow-up was already sent.'); p.touches = 2; p.dFollow = today; p.status = 'Follow-Up Sent'; p.hubPending = true; p.followNote = String(a.note||'').trim(); }
+      else if(w==='final'){ if(p.touches!==2) throw new Error(p.touches<2?'The final note comes after the follow-up.':'Every contact gets at most three touches.'); p.touches = 3; p.dFinal = today; p.status = 'Final Note Sent'; p.finalChannel = (p.channel==='Email'?'LinkedIn':'Email'); p.hubPending = true; p.finalNote = String(a.note||'').trim(); }
       else if(w==='completed'){ p.completion = 'Completed'; p.dComplete = today; p.status = 'Survey Completed'; p.optQuote = !!a.quote; p.optContrib = !!a.contributor; p.optCall = !!a.call; p.thanksDue = ivsBizDays(today, 2); p.hubPending = true; }
       else if(w==='declined'){ p.status = 'Declined'; p.dnc = !!a.dnc; p.declineNote = String(a.note||'').trim(); p.hubPending = true; }
       else if(w==='unqualified'){ if(String(a.note||'').trim().length<3) throw new Error('Say why '+p.name+' doesn’t qualify.'); p.status = 'Unqualified'; p.unqNote = a.note.trim(); }
       else if(w==='thanks'){ if(p.completion!=='Completed') throw new Error('Send the thank-you after the survey is completed.'); p.dThanks = today; p.hubPending = true; }
       else if(w==='hub'){ p.hubPending = false; p.hub = today; }
+      else if(w==='prepare'){ if(IVS_STOP.includes(p.status)) throw new Error('No further touches.'); p.prepared = {ts:ts, by:by, kind:a.kind||'request'}; ivsTouch(p, by, ts, 'Opened LinkedIn and copied the '+(a.kind==='request'||!a.kind?'connection note':'message')+' (waiting for confirmation that it was sent)'); changed++; return; }
       else if(w==='callRouted'){ p.callRouted = {by:by, at:ts}; }
       else if(w==='reopen'){ if(role!=='admin') throw new Error('Only an administrator reopens a closed contact.'); if(String(a.note||'').trim().length<3) throw new Error('Say why.'); p.status = p.touches ? 'Invitation Sent' : 'Not Contacted'; p.completion = 'Not Completed'; }
       else throw new Error('Unknown action.');
       ivsTouch(p, by, ts, ({invite:'Invitation sent ('+p.channel+')', connected:'Connection accepted', responded:'Responded', follow:'Follow-up sent', final:'Final note sent ('+(p.finalChannel||'other channel')+')', completed:'Survey completed'+(p.optCall?' (asked for a follow-up call)':''),
         declined:p.dnc?'Declined: asked not to be contacted':'Declined', unqualified:'Marked unqualified: '+(p.unqNote||''), thanks:'Thank-you sent', hub:'Logged in HubSpot', callRouted:'Follow-up call routed to Kylee', reopen:'Reopened: '+String(a.note||'')})[w] + (before!==p.status?' ['+before+' → '+p.status+']':''));
+      ivsLedger(D, p, w, by, ts, today);
       changed++; return; }
     throw new Error('Unknown change.');
   });
   if(!changed) return false;
   L.forEach(function(p, i){ var was = snaps[i], fu = p.fu = p.fu || {}; Object.keys(p).concat(Object.keys(was)).forEach(function(k){ if(IVS_META.indexOf(k)>=0) return; if(JSON.stringify(p[k])!==JSON.stringify(was[k])) fu[k] = ts; }); });
-  ivsLog(D, by, ts, (act==='mark'?({invite:'Invitation sent',connected:'Connection accepted',responded:'Responded',follow:'Follow-up sent',final:'Final note sent',completed:'Survey completed',declined:'Declined',unqualified:'Marked unqualified',thanks:'Thank-you sent',hub:'Logged in HubSpot',callRouted:'Call routed to Kylee',reopen:'Reopened'})[a.what]:({set:'Edited',note:'Edited',verify:'Profile '+String(a.verdict||'').toLowerCase(),requestApproval:'Sent for sender approval',approve:'Tier 1 approved',changes:'Changes requested',assign:'Assigned',wave:'Wave set',remove:a.undo?'Restored':'Removed'})[act]||act)+': '+L.map(function(p){ return p.name; }).slice(0,4).join(', ')+(L.length>4?' and '+(L.length-4)+' more':''));
+  ivsLog(D, by, ts, (act==='mark'?({invite:'Invitation sent',connected:'Connection accepted',responded:'Responded',follow:'Follow-up sent',final:'Final note sent',completed:'Survey completed',declined:'Declined',unqualified:'Marked unqualified',thanks:'Thank-you sent',hub:'Logged in HubSpot',callRouted:'Call routed to Kylee',reopen:'Reopened',prepare:'LinkedIn opened, waiting for confirmation'})[a.what]:({set:'Edited',note:'Edited',verify:'Profile '+String(a.verdict||'').toLowerCase(),requestApproval:'Sent for sender approval',approve:'Tier 1 approved',changes:'Changes requested',assign:'Assigned',wave:'Wave set',remove:a.undo?'Restored':'Removed'})[act]||act)+': '+L.map(function(p){ return p.name; }).slice(0,4).join(', ')+(L.length>4?' and '+(L.length-4)+' more':''));
   return {changed:changed};
 }
+/* one entry per activity and prospect: the id makes it impossible to count the same send twice */
+function ivsLedger(D, p, w, by, ts, today){
+  var kind = w==='invite' ? (p.channel==='Email' ? 'invite' : 'request') : w; if(!IVS_ACT_LABEL[kind]) return;
+  var id = p.id+':'+kind; D.acts = D.acts || []; if(D.acts.some(function(x){ return x.id===id; })) return;
+  var note = kind==='request'||kind==='invite' ? p.noteSent : kind==='follow' ? p.followNote : kind==='final' ? p.finalNote : '';
+  D.acts.unshift({id:id, pid:p.id, kind:kind, ts:ts, day:today, by:by, name:p.name, url:p.url, seg:p.cat, tier:p.tier, sender:p.sender||'', note:note||'', status:IVS_DESK_LABEL[ivsDeskStatus(p, today)], counts:IVS_ACT_COUNTS.indexOf(kind)>=0});
+  if(D.acts.length > 5000) D.acts.length = 5000; }
+function ivsTargets(D, today){
+  today = today || ivsDay(); var A = (D.acts||[]), cfg = D.cfg||{}, daily = +cfg.dailyTarget || IVS_TARGET.daily, total = +cfg.totalTarget || IVS_TARGET.invites;
+  var T = A.filter(function(x){ return x.day===today; }), cnt = function(L, f){ return L.filter(f).length; };
+  var r = {daily:daily, total:total, todayActs:cnt(T, function(x){ return x.counts; }), todayReq:cnt(T, function(x){ return x.kind==='request'; }), allActs:cnt(A, function(x){ return x.counts; }), allReq:cnt(A, function(x){ return x.kind==='request'; }),
+    invites:cnt(A, function(x){ return x.kind==='request' || x.kind==='invite'; })};
+  r.todayLeft = Math.max(0, daily - r.todayActs); r.todayPct = Math.min(100, Math.round(r.todayActs/daily*100));
+  r.totalLeft = Math.max(0, total - r.invites); r.totalPct = Math.min(100, Math.round(r.invites/total*100));
+  r.pace = ivsPace(total, 0, '2026-10-28', '2026-12-14', today);
+  r.todayStatus = r.todayActs >= daily ? 'Daily target met' : ivsNoSend(today) ? 'No sends this week (Thanksgiving)' : (new Date(today+'T12:00:00').getDay()%6===0 ? 'Weekend' : r.todayLeft+' to go today');
+  r.totalStatus = r.invites >= total ? 'Target reached' : r.invites >= r.pace*0.8 ? 'On pace' : 'Behind pace ('+r.pace+' expected by now)';
+  return r; }
 /* ---------- merging two copies of the document (newer edit of each record wins) ---------- */
 /* one record from two copies: start from the newer copy, then take every field the other copy changed more recently */
 function ivsMergeRec(a, b){
@@ -2497,7 +2528,10 @@ function ivsMerge(local, remote){
     local.P[local.P.indexOf(lp)] = ivsMergeRec(lp, rp); });
   if(remote.cfg && (remote.cfg.u||0) > ((local.cfg||{}).u||0)) local.cfg = JSON.parse(JSON.stringify(remote.cfg));
   var seen = {}; (local.log||[]).forEach(function(l){ seen[l.id] = 1; }); (remote.log||[]).forEach(function(l){ if(!seen[l.id]) (local.log = local.log||[]).push(l); });
-  local.log.sort(function(a,b){ return b.ts - a.ts; }); if(local.log.length > 1500) local.log.length = 1500; return local;
+  local.log.sort(function(a,b){ return b.ts - a.ts; }); if(local.log.length > 1500) local.log.length = 1500;
+  var sa = {}; (local.acts||[]).forEach(function(x){ sa[x.id] = 1; }); (remote.acts||[]).forEach(function(x){ if(!sa[x.id]){ (local.acts = local.acts||[]).push(x); sa[x.id] = 1; } });
+  if(local.acts) local.acts.sort(function(a,b){ return b.ts - a.ts; });
+  return local;
 }
 
 /* ---------- the master list (same 26 columns as the Google Sheet) ---------- */
@@ -2515,8 +2549,8 @@ function ivsTSV(D){ return [IVS_COLS].concat((D.P||[]).filter(function(p){ retur
 /* ---------- Investor Survey 2027: the screen (same in both portals) ----------
    The host portal provides IVS.host = {doc(), role(), user(), apply(act, args) → Promise, root(), toast(msg), seed[]}.
    role: 'admin' (CrossCore administrator, unlocked with the desk's admin passcode) · 'va' (engagement team) · 'client' (Dan) */
-var IVS = {host:null, tab:'dash', q:'', f:{cat:'', tier:'', status:'', verify:'', sender:'', assignee:'', comp:'', industry:'', loc:'', company:'', role:''}, open:null, page:0, msgKind:'linkedin', sel:{}};
-var IVS_TABS = [['dash','Dashboard'],['dir','Investor directory'],['appr','Tier 1 approvals'],['sched','Schedule & follow-ups'],['msgs','Messages'],['sheet','Google Sheet'],['team','Team'],['log','Activity']];
+var IVS = {host:null, tab:'dash', q:'', actSeg:'', f:{dst:'', cat:'', tier:'', status:'', verify:'', sender:'', assignee:'', comp:'', industry:'', loc:'', company:'', role:''}, open:null, page:0, msgKind:'linkedin', sel:{}};
+var IVS_TABS = [['dash','Dashboard'],['dir','Investor directory'],['appr','Tier 1 approvals'],['sched','Schedule & follow-ups'],['msgs','Messages'],['sheet','Google Sheet'],['team','Team'],['log','LinkedIn activity']];
 function ivsH(){ return IVS.host; }
 function ivsD(){ var d = ivsH() && ivsH().doc(); return d && d.ivs; }
 function ivsRole(){ return ivsH() ? ivsH().role() : 'view'; }
@@ -2558,7 +2592,7 @@ function ivsRender(){
   var h = ivsH(); if(!h) return; var root = h.root(); if(!root) return; var D = ivsD(), role = ivsRole();
   if(!D){ root.innerHTML = '<div class="ivs"><div class="ivs-empty"><h3>Investor Survey 2027</h3><p>The prospect list hasn’t been set up in the shared database yet.</p>'+
     (ivsIsTeam() && h.seed && h.seed.length ? '<button class="ivs-btn pri" onclick="ivsRun(\'seed\',{seed:IVS.host.seed, sheetUrl:IVS.host.sheetUrl||\'\'},\'Prospect list loaded\')">Load the '+h.seed.length+' researched prospects</button>' : '<p class="ivs-mut">The engagement team loads it from their portal.</p>')+'</div></div>'; return; }
-  var tabs = IVS_TABS.filter(function(t){ return !(t[0]==='log' && role==='client'); });
+  var tabs = IVS_TABS;
   if(!tabs.some(function(t){ return t[0]===IVS.tab; })) IVS.tab = 'dash';
   var s = ivsStats(D);
   var body = IVS.tab==='dir' ? ivsDirHTML(D) : IVS.tab==='appr' ? ivsApprHTML(D) : IVS.tab==='sched' ? ivsSchedHTML(D, s) : IVS.tab==='msgs' ? ivsMsgsHTML(D) : IVS.tab==='sheet' ? ivsSheetHTML(D) : IVS.tab==='team' ? ivsTeamHTML(D, s) : IVS.tab==='log' ? ivsLogHTML(D) : ivsDashHTML(D, s);
@@ -2577,7 +2611,7 @@ function ivsDashHTML(D, s){
     return '<tr><td><b>'+IVS_CATS[k].n+'</b></td><td>'+c.prospects+'</td><td>'+c.verified+'</td><td>'+c.invited+(IVS_CATS[k].invite?' / '+IVS_CATS[k].invite:'')+ivsBar(c.invited, IVS_CATS[k].invite||1)+'</td><td>'+c.completed+(fin?' / '+fin:'')+(fin?ivsBar(c.completed, fin, 'g'):'')+'</td><td>'+(m!=null?(function(){ var pm = s.msIx>0 ? IVS_CATS[k].ms[s.msIx-1] : 0, pc = ivsPace(m, pm, prevD, ms.d, today); return c.completed>=m?'<span class="ivs-b g">milestone met</span>':(pc>0 && c.completed < pc*0.8)?'<span class="ivs-b r">behind pace ('+pc+' expected by now)</span>':'<span class="ivs-b w">'+m+' by '+ivsFmt(ms.d)+'</span>'; })():'<span class="ivs-mut">counts toward total</span>')+'</td></tr>'; }).join('');
   var next = ivsNextSched(today).map(function(x){ return '<li class="'+(x.from<=today?'now':'')+(x.stop?' stop':'')+'"><b>'+ivsFmt(x.from)+(x.to!==x.from?' – '+ivsFmt(x.to):'')+'</b> '+ivsEsc(x.what)+' <span class="ivs-mut">'+ivsEsc(x.who)+'</span></li>'; }).join('');
   var gaps = []; IVS_CAT_KEYS.forEach(function(k){ if(IVS_CATS[k].invite && s.byCat[k].prospects < IVS_CATS[k].invite) gaps.push(IVS_CATS[k].n+': '+s.byCat[k].prospects+' of '+IVS_CATS[k].invite+' invites on the list'); });
-  return '<div class="ivs-kpis">'+ivsKpi('Prospects on the list', s.total, s.verified+' verified · '+s.needsVer+' to verify')+ivsKpi('Qualified', s.qualified, 'verified and eligible')+ivsKpi('Tier 1 / Tier 2', s.t1+' / '+s.t2, 'targets about 100 / 320')+
+  return ivsTrackerHTML(D)+ivsSegCards(D)+'<div class="ivs-kpis">'+ivsKpi('Prospects on the list', s.total, s.verified+' verified · '+s.needsVer+' to verify')+ivsKpi('Qualified', s.qualified, 'verified and eligible')+ivsKpi('Tier 1 / Tier 2', s.t1+' / '+s.t2, 'targets about 100 / 320')+
     ivsKpi('Invites sent', s.invited+' / '+IVS_TARGET.invites, ivsBar(s.invited, IVS_TARGET.invites))+ivsKpi('Surveys completed', s.completed+' / '+IVS_TARGET.completes, ivsBar(s.completed, IVS_TARGET.completes, 'g')+Math.round(s.completed/IVS_TARGET.completes*100)+'% of goal', 'g')+
     ivsKpi('Awaiting sender approval', s.awaiting, 'Tier 1', s.awaiting?'w':'')+ivsKpi('Connections accepted', s.connected, '')+ivsKpi('Responses', s.responded, s.respRate+'% response rate')+ivsKpi('Follow-ups due', s.followDue+s.finalDue, s.thanksDue+' thank-yous due', (s.followDue+s.finalDue)?'w':'')+ivsKpi('Declined', s.declined, s.hubPending+' touches to log in HubSpot')+'</div>'+
     '<div class="ivs-grid2"><section class="ivs-card"><h3>Completed surveys vs weekly milestones</h3>'+IVS_MS.map(function(m, i){ var cur = i===s.msIx; return '<div class="ivs-ms'+(cur?' cur':'')+'"><span>'+ivsFmt(m.d)+'</span><div class="ivs-msb">'+ivsBar(Math.min(s.completed, m.t), m.t, s.completed>=m.t?'g':'')+'</div><b>'+Math.min(s.completed, m.t)+' / '+m.t+'</b></div>'; }).join('')+
@@ -2587,12 +2621,26 @@ function ivsDashHTML(D, s){
     '<section class="ivs-card"><h3>By tier</h3><div class="ivs-tw"><table class="ivs-t"><thead><tr><th>Tier</th><th>On list</th><th>Invites</th><th>Responses</th><th>Completed</th><th>Response rate</th></tr></thead><tbody>'+['Tier 1','Tier 2'].map(function(t){ var x = s.byTier[t]; return '<tr><td><b>'+t+'</b></td><td>'+x.prospects+'</td><td>'+x.invited+'</td><td>'+x.responded+'</td><td>'+x.completed+'</td><td>'+(x.invited?Math.round(x.responded/x.invited*100):0)+'%</td></tr>'; }).join('')+'</tbody></table></div></section>';
 }
 
+/* ---------- live target tracker (counts confirmed activities once, from the activity ledger) ---------- */
+function ivsTrackerHTML(D, compact){
+  var t = ivsTargets(D), st = function(txt, ok){ return '<span class="ivs-b '+(ok?'g':/Behind/.test(txt)?'r':'w')+'">'+ivsEsc(txt)+'</span>'; };
+  return '<section class="ivs-card ivs-trk" aria-live="polite"><div class="ivs-trkg">'+
+    '<div><small>Today \u00b7 engagement activities</small><b>'+t.todayActs+' / '+t.daily+'</b>'+ivsBar(t.todayActs, t.daily, t.todayActs>=t.daily?'g':'')+'<span>'+t.todayPct+'% \u00b7 '+t.todayLeft+' remaining \u00b7 '+t.todayReq+' connection request'+(t.todayReq===1?'':'s')+' today</span>'+st(t.todayStatus, t.todayActs>=t.daily)+'</div>'+
+    '<div><small>Overall \u00b7 invitations sent</small><b>'+t.invites+' / '+t.total+'</b>'+ivsBar(t.invites, t.total, t.invites>=t.total?'g':'')+'<span>'+t.totalPct+'% \u00b7 '+t.totalLeft+' remaining</span>'+st(t.totalStatus, t.invites>=t.total || /On pace/.test(t.totalStatus))+'</div>'+
+    (compact?'':'<div><small>Totals</small><b>'+t.allActs+'</b><span>completed engagement activities</span><span><b>'+t.allReq+'</b> LinkedIn connection requests sent</span></div>')+
+    '</div><p class="ivs-mut" style="margin:6px 0 0">Updates as soon as a send is confirmed. Each activity counts once, even when it shows in several segments or reports.</p></section>'; }
+function ivsSegCards(D){
+  var today = ivsDay(), P = D.P.filter(function(p){ return !p.removed; }), A = D.acts||[], wk = ivsAddDays(today, -((new Date(today+'T12:00:00').getDay()+6)%7));
+  return '<div class="ivs-segs">'+IVS_CAT_KEYS.map(function(k){ var L = P.filter(function(p){ return p.cat===k; }), c = {}; Object.keys(IVS_DESK_LABEL).forEach(function(s){ c[s] = 0; }); L.forEach(function(p){ c[ivsDeskStatus(p, today)]++; });
+    var tgt = Math.max(1, Math.round((IVS_CATS[k].invite||30)/30)), td = A.filter(function(x){ return x.seg===k && x.day===today && (x.kind==='request'||x.kind==='invite'); }).length, w = A.filter(function(x){ return x.seg===k && x.day>=wk && (x.kind==='request'||x.kind==='invite'); }).length;
+    return '<button class="ivs-seg" onclick="IVS.tab=\'dir\';IVS.f.cat=\''+k+'\';IVS.page=0;ivsRender()"><div class="ivs-segt"><b>'+IVS_CATS[k].n+'</b><span>'+L.length+' prospects</span></div><div class="ivs-segn"><b>'+td+'</b> / '+tgt+' <small>requests today</small></div>'+ivsBar(w, tgt*5)+'<div class="ivs-mut">This week '+w+' / '+tgt*5+'</div>'+
+      '<div class="pills">'+Object.keys(IVS_DESK_LABEL).map(function(s){ return c[s]?'<span class="pill st-'+s+'">'+c[s]+' '+IVS_DESK_LABEL[s]+'</span>':''; }).join('')+'</div></button>'; }).join('')+'</div>'; }
 /* ---------- directory ---------- */
 function ivsFiltered(D){
   var f = IVS.f, q = IVS.q.trim().toLowerCase();
   return D.P.filter(function(p){ if(p.removed) return false;
     if(f.cat && p.cat!==f.cat) return false; if(f.tier && p.tier!==f.tier) return false; if(f.status && p.status!==f.status) return false; if(f.verify && p.verify!==f.verify) return false;
-    if(f.sender && (p.sender||'(none)')!==f.sender) return false; if(f.assignee && (p.assignee||'(none)')!==f.assignee) return false; if(f.comp && p.completion!==f.comp) return false;
+    if(f.sender && (p.sender||'(none)')!==f.sender) return false; if(f.assignee && (p.assignee||'(none)')!==f.assignee) return false; if(f.comp && p.completion!==f.comp) return false; if(f.dst && ivsDeskStatus(p)!==f.dst) return false;
     if(f.industry && p.industry!==f.industry) return false; if(f.company && p.company!==f.company) return false; if(f.role && (p.role||'')!==f.role) return false;
     if(f.loc && (p.location||'').toLowerCase().indexOf(f.loc.toLowerCase())<0) return false;
     if(q && [p.name, p.title, p.company, p.location, p.type, p.industry].join(' ').toLowerCase().indexOf(q)<0) return false; return true; });
@@ -2606,6 +2654,7 @@ function ivsDirHTML(D){
   var filters = '<div class="ivs-filt"><input type="search" placeholder="Search name, firm, title…" value="'+ivsEsc(IVS.q)+'" oninput="IVS.q=this.value;IVS.page=0;clearTimeout(window._ivq);window._ivq=setTimeout(ivsRender,250)" aria-label="Search">'+
     '<select onchange="ivsSetF(\'cat\',this.value)" aria-label="Category">'+ivsOpts(IVS_CAT_KEYS.map(function(k){ return [k, IVS_CATS[k].n]; }), f.cat, 'All categories')+'</select>'+
     '<select onchange="ivsSetF(\'tier\',this.value)" aria-label="Tier">'+ivsOpts(['Tier 1','Tier 2'], f.tier, 'Both tiers')+'</select>'+
+    '<select onchange="ivsSetF(\'dst\',this.value)" aria-label="LinkedIn status">'+ivsOpts(Object.keys(IVS_DESK_LABEL).map(function(k){ return [k, IVS_DESK_LABEL[k]]; }), f.dst, 'LinkedIn: any')+'</select>'+
     '<select onchange="ivsSetF(\'status\',this.value)" aria-label="Engagement status">'+ivsOpts(IVS_ST, f.status, 'Any status')+'</select>'+
     '<select onchange="ivsSetF(\'verify\',this.value)" aria-label="Verification">'+ivsOpts(IVS_VERIFY, f.verify, 'Any verification')+'</select>'+
     '<select onchange="ivsSetF(\'comp\',this.value)" aria-label="Survey completion">'+ivsOpts(['Completed','Not Completed'], f.comp, 'Survey: any')+'</select>'+
@@ -2625,10 +2674,10 @@ function ivsDirHTML(D){
       '<div class="ivs-meta"><span class="ivs-b c">'+ivsEsc((IVS_CATS[p.cat]||{}).n||p.cat)+'</span> <span class="ivs-b '+(p.tier==='Tier 1'?'t1':'n')+'">'+p.tier+'</span>'+(p.role?' <span class="ivs-b n">'+ivsEsc(p.role)+'</span>':'')+'<div class="ivs-mut">'+ivsEsc(p.type)+'</div>'+
         '<div class="ivs-mut">Sender: <b>'+ivsEsc(p.sender||'not assigned')+'</b>'+(p.tier==='Tier 1'?' · '+ivsEsc(p.approval):'')+(p.assignee?' · '+ivsEsc(p.assignee):'')+'</div></div>'+
       '<div class="ivs-why">'+ivsEsc(p.reason)+'<div class="ivs-note">“'+ivsEsc(ivsMsg('connect', p, D.cfg||{}).text)+'”</div></div>'+
-      '<div class="ivs-st">'+ivsBadge(p.status)+' '+ivsVer(p)+(fl.length?'<div class="ivs-fl">'+(bad?'⚠ ':'ℹ ')+ivsEsc(fl[0].t)+(fl.length>1?' (+'+(fl.length-1)+')':'')+'</div>':'')+
+      '<div class="ivs-st"><span class="pill st-'+ivsDeskStatus(p)+'" title="Same LinkedIn status as the other prospect lists">'+IVS_DESK_LABEL[ivsDeskStatus(p)]+'</span> '+ivsBadge(p.status)+' '+ivsVer(p)+(p.prepared?'<div class="ivs-fl">\u23f3 LinkedIn opened '+ivsEsc(ivsFmtTs(p.prepared.ts))+': confirm once it\u2019s sent</div>':'')+(p.syncIssue?'<div class="ivs-fl">\u26a0 '+ivsEsc(p.syncIssue)+'</div>':'')+(p.prior?'<div class="ivs-fl">\u2139 '+ivsEsc(p.prior)+'</div>':'')+(fl.length?'<div class="ivs-fl">'+(bad?'⚠ ':'ℹ ')+ivsEsc(fl[0].t)+(fl.length>1?' (+'+(fl.length-1)+')':'')+'</div>':'')+
         '<div class="ivs-acts"><button class="ivs-btn sm" onclick="ivsCopyMsg(\''+p.id+'\',\'connect\')">Copy connection note</button><button class="ivs-btn sm" onclick="ivsCopyMsg(\''+p.id+'\',\'linkedin\')">Copy survey message</button>'+ivsMarkMenu(p)+'</div></div></article>';
   }).join('');
-  return '<section class="ivs-card">'+filters+bulk+'<div class="ivs-cnt">'+L.length+' of '+P.length+' prospects'+(L.length>per?' · page '+(IVS.page+1)+' of '+pages:'')+'</div>'+(rows||'<p class="ivs-mut" style="padding:20px">Nobody matches these filters.</p>')+
+  return ivsTrackerHTML(D, true)+'<section class="ivs-card">'+filters+bulk+'<div class="ivs-cnt">'+L.length+' of '+P.length+' prospects'+(L.length>per?' · page '+(IVS.page+1)+' of '+pages:'')+'</div>'+(rows||'<p class="ivs-mut" style="padding:20px">Nobody matches these filters.</p>')+
     (pages>1?'<div class="ivs-pg"><button class="ivs-btn sm" '+(IVS.page?'':'disabled')+' onclick="IVS.page--;ivsRender()">← Previous</button><button class="ivs-btn sm" '+(IVS.page<pages-1?'':'disabled')+' onclick="IVS.page++;ivsRender()">Next →</button></div>':'')+'</section>';
 }
 function ivsMarkMenu(p){
@@ -2636,8 +2685,8 @@ function ivsMarkMenu(p){
   var o = [['','Mark…']];
   if(p.verify!=='Verified') o.push(['verify','Verify profile…']);
   if(p.tier==='Tier 1' && !['Approved','Awaiting Sender Approval'].includes(p.approval) && ivsOpen(p)) o.push(['req','Send to sender for approval']);
-  if(ivsOpen(p)){ if(!p.touches) o.push(['invite','Mark invitation sent']); if(p.touches && !p.accepted) o.push(['connected','Mark connection accepted']); if(p.touches && !p.responded) o.push(['responded','Mark responded']);
-    if(p.touches===1) o.push(['follow','Mark follow-up sent']); if(p.touches===2) o.push(['final','Mark final note sent']); o.push(['completed','Mark survey completed…'], ['declined','Mark declined…'], ['unqualified','Mark unqualified…']); }
+  if(ivsOpen(p)){ if(!p.touches) o.push(['invite','Send connection request\u2026']); if(p.touches && !p.accepted) o.push(['connected','Mark connection accepted']); if(p.touches && !p.responded) o.push(['responded','Mark responded']);
+    if(p.touches===1) o.push(['follow','Send follow-up\u2026']); if(p.touches===2) o.push(['final','Send final note\u2026']); o.push(['completed','Mark survey completed…'], ['declined','Mark declined…'], ['unqualified','Mark unqualified…']); }
   if(p.completion==='Completed' && !p.dThanks) o.push(['thanks','Mark thank-you sent']);
   if(p.hubPending) o.push(['hub','Logged in HubSpot today']);
   return '<select class="ivs-mark" aria-label="Update '+ivsEsc(p.name)+'" onchange="ivsMarkPick(\''+p.id+'\',this.value);this.value=\'\'">'+o.map(function(x){ return '<option value="'+x[0]+'">'+x[1]+'</option>'; }).join('')+'</select>';
@@ -2647,6 +2696,7 @@ function ivsMarkPick(id, w){
   if(w==='verify') return ivsVerifyModal(id); if(w==='req') return ivsRun('requestApproval', {id:id}, 'Sent to '+(p.sender||'the sender')+' for approval');
   if(w==='completed') return ivsCompleteModal(id); if(w==='declined' || w==='unqualified') return ivsReasonModal(id, w);
   if(w==='invite') return ivsInviteModal(id);
+  if(w==='follow' || w==='final') return ivsSendModal(id, w);
   ivsRun('mark', {id:id, what:w}, ({connected:'Connection accepted', responded:'Marked responded', follow:'Follow-up recorded. Log it in HubSpot today.', final:'Final note recorded. Log it in HubSpot today.', thanks:'Thank-you recorded', hub:'Marked as logged in HubSpot'})[w]);
 }
 function ivsCopyMsg(id, kind){ var D = ivsD(), p = D.P.find(function(x){ return x.id===id; }); if(!p) return; var m = ivsMsg(kind, p, D.cfg||{});
@@ -2710,8 +2760,27 @@ function ivsVerifyModal(id){ var p = ivsD().P.find(function(x){ return x.id===id
     '<div class="ivs-acts"><button class="ivs-btn pri" onclick="ivsVerify(\''+id+'\',\'Verified\')">✓ Verified: live profile matches</button><button class="ivs-btn" onclick="ivsVerify(\''+id+'\',\'Rejected\')">Reject (wrong person, moved on, doesn’t qualify)</button><button class="ivs-btn" onclick="ivsVerify(\''+id+'\',\'Duplicate\')">Duplicate</button><button class="ivs-btn" onclick="ivsVerify(\''+id+'\',\'Needs Verification\')">Still can’t confirm</button></div>'); }
 function ivsVerify(id, v){ var g = function(i){ var e = document.getElementById(i); return e ? e.value.trim() : ''; };
   ivsRun('verify', {id:id, verdict:v, note:g('ivsVN')|| (v==='Needs Verification'?'Could not confirm yet':''), patch:{title:g('ivsVT'), company:g('ivsVC'), location:g('ivsVL')}}, v==='Verified'?'Profile verified':'Saved').then(function(r){ if(r!==undefined) ivsClose(); }); }
-function ivsInviteModal(id){ var D = ivsD(), p = D.P.find(function(x){ return x.id===id; });
-  ivsModal('Record the invitation to '+p.name, '<p>Send it yourself first (from <b>'+ivsEsc(p.sender||'the sender')+'</b>’s own account), then record it here. Log the touch in HubSpot today.</p><div class="ivs-f"><label>Channel</label><select id="ivsCh"><option'+(p.channel!=='Email'?' selected':'')+'>LinkedIn</option><option'+(p.channel==='Email'?' selected':'')+'>Email</option></select></div><button class="ivs-btn pri" onclick="ivsRun(\'mark\',{id:\''+id+'\',what:\'invite\',channel:document.getElementById(\'ivsCh\').value},\'Invitation recorded. Log it in HubSpot today.\').then(function(){ivsClose()})">Mark invitation sent</button>'); }
+function ivsInviteModal(id){ ivsSendModal(id, 'invite'); }
+/* sending happens on LinkedIn (or email) from the sender's own account; the portal records it only after the sender confirms it went out */
+function ivsSendModal(id, w){
+  var D = ivsD(), p = D.P.find(function(x){ return x.id===id; }); if(!p) return; var cfg = D.cfg||{};
+  var li = w==='invite' ? (IVS.sendCh || (p.channel==='Email'?'Email':'LinkedIn'))==='LinkedIn' : (w==='final' ? p.channel==='Email' : p.channel!=='Email');
+  var kind = w==='invite' ? (li ? 'connect' : (p.tier==='Tier 1'?'email1':'email2')) : w==='follow' ? 'followup' : 'final';
+  var m = ivsMsg(kind, p, cfg), lim = kind==='connect' ? '<span class="ivs-mut"> '+m.text.length+' characters'+(m.text.length>IVS_SHORT_LIMIT?' (over 200: needs LinkedIn Premium)':'')+'</span>' : '';
+  var title = (w==='invite' ? (li ? 'LinkedIn connection request' : 'Invitation email') : w==='follow' ? 'Follow-up' : 'Final note')+': '+p.name;
+  ivsModal(title, (w==='invite'?'<div class="ivs-filt"><label class="ivs-mut">Channel</label><select onchange="IVS.sendCh=this.value;ivsSendModal(\''+id+'\',\'invite\')"><option'+(li?' selected':'')+'>LinkedIn</option><option'+(!li?' selected':'')+'>Email</option></select></div>':'<p class="ivs-mut">Channel: <b>'+(li?'LinkedIn':'Email')+'</b>'+(w==='final'?' (the other channel from the invite, per the playbook)':' (same channel as the invite)')+'</p>')+
+    '<ol class="ivs-steps"><li>'+(li?'Copy the note, open '+ivsEsc(p.first)+'\u2019s profile, click <b>Connect \u2192 Add a note</b> and paste it.':'Copy the message and send it from '+ivsEsc(p.sender||'the sender')+'\u2019s own inbox.')+'</li><li>Send it from <b>'+ivsEsc(p.sender||'[assign a sender]')+'</b>\u2019s own account.</li><li>Come back and confirm it was sent. Only then is it counted, added to Dan\u2019s report and the targets.</li></ol>'+
+    '<div class="ivs-msg"><div class="ivs-msgh"><b>'+(li&&w==='invite'?'Connection note':'Message')+'</b>'+lim+'</div><pre id="ivsSendTxt">'+ivsEsc(m.text)+'</pre>'+(m.miss.length?'<div class="ivs-fl">Missing: '+m.miss.join(', ')+'. Fill these in before sending.</div>':'')+'</div>'+
+    '<div class="ivs-acts"><button class="ivs-btn" onclick="ivsPrepare(\''+id+'\',\''+w+'\','+li+')">'+(li?'Copy note & open LinkedIn \u2197':'Copy message')+'</button></div>'+
+    '<label class="ivs-ck" style="margin-top:12px"><input type="checkbox" id="ivsSentOk"> I confirm '+(li&&w==='invite'?'this connection request with this note was sent':'this was sent')+' to '+ivsEsc(p.name)+' from '+ivsEsc(p.sender||'the sender')+'\u2019s account.</label>'+
+    '<button class="ivs-btn pri" onclick="ivsConfirmSent(\''+id+'\',\''+w+'\','+li+')">Confirm sent</button> <span class="ivs-mut">Log the touch in HubSpot today.</span>');
+}
+function ivsPrepare(id, w, li){ var D = ivsD(), p = D.P.find(function(x){ return x.id===id; }); var t = (document.getElementById('ivsSendTxt')||{}).textContent||'';
+  ivsCopy(t, li?'Connection note':'Message'); if(li && ivsIsProfile(p.url)){ try{ window.open(p.url, '_blank', 'noopener'); }catch(e){} }
+  Promise.resolve().then(function(){ return ivsH().apply('mark', {id:id, what:'prepare', kind:w==='invite'&&li?'request':w}); }).catch(function(e){ ivsToast(e.message); }); }
+function ivsConfirmSent(id, w, li){ var ok = document.getElementById('ivsSentOk'); if(!ok || !ok.checked) return ivsToast('Tick the confirmation once it has actually been sent.');
+  var t = (document.getElementById('ivsSendTxt')||{}).textContent||'';
+  ivsRun('mark', {id:id, what:w, channel:li?'LinkedIn':'Email', note:t, confirmed:true}, (w==='invite'?(li?'Connection request recorded':'Invitation recorded'):w==='follow'?'Follow-up recorded':'Final note recorded')+': counted once, in Dan\u2019s report and the targets').then(function(r){ if(r) ivsClose(); }); }
 function ivsCompleteModal(id){ var p = ivsD().P.find(function(x){ return x.id===id; });
   ivsModal('Survey completed: '+p.name, '<p>Copy only these from the response sheet. Individual answers stay in the sheet and are never copied here or into HubSpot.</p><label class="ivs-ck"><input type="checkbox" id="ivsOq"> Quote permission</label><label class="ivs-ck"><input type="checkbox" id="ivsOc"> Contributor listing</label><label class="ivs-ck"><input type="checkbox" id="ivsOf"> Asked for a follow-up call (flag for Kylee)</label>'+
     '<p class="ivs-mut">All reminders stop. Send the thank-you within two business days.</p><button class="ivs-btn pri" onclick="ivsRun(\'mark\',{id:\''+id+'\',what:\'completed\',quote:document.getElementById(\'ivsOq\').checked,contributor:document.getElementById(\'ivsOc\').checked,call:document.getElementById(\'ivsOf\').checked},\'Completed: reminders stopped\').then(function(){ivsClose()})">Mark completed</button>'); }
@@ -2778,7 +2847,7 @@ function ivsTeamHTML(D, s){
     '<section class="ivs-card"><h3>Roles</h3><ul class="ivs-roles"><li><b>Dan (client portal)</b>: sees everything here, approves Tier 1 invites he sends, edits personal lines and messages.</li><li><b>Engagement team (CrossCore VA portal)</b>: adds and verifies prospects, classifies, assigns tiers, drafts notes, copies messages, records every touch and survey participation.</li><li><b>CrossCore administrator</b> (VA portal, unlocked with the desk\u2019s admin passcode): settings, senders, team list, firm-cap exceptions, reopening closed contacts.</li><li><b>Kylee</b>: approves firm-cap exceptions and receives follow-up call requests; administrators record her decisions here.</li></ul></section>'+
     (ivsRole()==='va' && ivsH().unlock ? '<section class="ivs-card"><h3>Administrator settings</h3><p class="ivs-mut">Survey link, Google Sheet, senders, team list and Kylee\u2019s firm-cap exceptions are for the CrossCore administrator. Enter the desk\u2019s admin passcode to open them on this device.</p><div class="ivs-filt"><input type="password" id="ivsUnl" placeholder="Admin passcode" style="max-width:200px" onkeydown="if(event.key===\'Enter\')ivsUnlock()"><button class="ivs-btn" onclick="ivsUnlock()">Unlock</button></div></section>' : '')+
     (admin?'<section class="ivs-card"><h3>Settings</h3><div class="ivs-grid2"><div class="ivs-f"><label>Base survey link (Tally)</label><input id="ivsC_base" value="'+ivsEsc(cfg.surveyBase||'')+'" placeholder="https://tally.so/r/…"></div><div class="ivs-f"><label>Hidden-field name for the personal link</label><input id="ivsC_param" value="'+ivsEsc(cfg.surveyParam||'contact')+'"></div>'+
-      '<div class="ivs-f"><label>Google Sheet URL</label><input id="ivsC_sheet" value="'+ivsEsc(cfg.sheetUrl||'')+'"></div><div class="ivs-f"><label>Senders (one per line: Dan and senior leaders, engagement team)</label><textarea id="ivsC_send" rows="3">'+ivsEsc((cfg.senders||[]).join('\n'))+'</textarea></div><div class="ivs-f"><label>Engagement team members (one per line)</label><textarea id="ivsC_vas" rows="3">'+ivsEsc((cfg.vas||[]).join('\n'))+'</textarea></div></div>'+
+      '<div class="ivs-f"><label>Google Sheet URL</label><input id="ivsC_sheet" value="'+ivsEsc(cfg.sheetUrl||'')+'"></div><div class="ivs-f"><label>Senders (one per line: Dan and senior leaders, engagement team)</label><textarea id="ivsC_send" rows="3">'+ivsEsc((cfg.senders||[]).join('\n'))+'</textarea></div><div class="ivs-f"><label>Engagement team members (one per line)</label><textarea id="ivsC_vas" rows="3">'+ivsEsc((cfg.vas||[]).join('\n'))+'</textarea></div><div class="ivs-f"><label>Daily target (engagement activities)</label><input id="ivsC_daily" type="number" min="1" value="'+(+cfg.dailyTarget||IVS_TARGET.daily)+'"></div><div class="ivs-f"><label>Overall target (invitations)</label><input id="ivsC_total" type="number" min="1" value="'+(+cfg.totalTarget||IVS_TARGET.invites)+'"></div></div>'+
       '<p class="ivs-mut">With a base link, each contact’s personal link is the base link plus ?'+ivsEsc(cfg.surveyParam||'contact')+'=&lt;contact id&gt;, so completes can be matched. Add the same hidden field in Tally. Leave empty to paste each personal link by hand.</p><button class="ivs-btn pri" onclick="ivsSaveCfg()">Save settings</button></section>'+
       '<section class="ivs-card"><h3>Firm-cap exceptions (Kylee)</h3>'+(over.length?'<p>Firms with more than two active invitees: '+over.map(function(k){ var ok = (cfg.capOk||{})[k.toLowerCase()]; return '<b>'+ivsEsc(k)+'</b> ('+firms[k]+')'+(ok?' <span class="ivs-b g">approved: '+ivsEsc(ok.note)+'</span>':''); }).join(', ')+'</p><div class="ivs-grid2"><div class="ivs-f"><label>Firm</label><select id="ivsK_firm">'+over.map(function(k){ return '<option>'+ivsEsc(k)+'</option>'; }).join('')+'</select></div><div class="ivs-f"><label>How Kylee approved it</label><input id="ivsK_note"></div></div><button class="ivs-btn" onclick="ivsRun(\'capOk\',{company:document.getElementById(\'ivsK_firm\').value,note:document.getElementById(\'ivsK_note\').value},\'Exception recorded\')">Record exception</button>':'<p class="ivs-mut">No firm is over the two-invitee limit.</p>')+'</section>':'');
 }
@@ -2786,8 +2855,17 @@ function ivsUnlock(){ var e = document.getElementById('ivsUnl'); if(ivsH().unloc
 function ivsSaveCfg(){ var g = function(i){ return (document.getElementById(i)||{}).value||''; }, lines = function(v){ return v.split('\n').map(function(x){ return x.trim(); }).filter(Boolean); };
   var b = g('ivsC_base').trim(); if(b && !/^https:\/\//.test(b)) return ivsToast('The survey link must start with https://');
   var sh = g('ivsC_sheet').trim(); if(sh && !/^https:\/\/docs\.google\.com\/spreadsheets\//.test(sh)) return ivsToast('Paste the Google Sheets link (docs.google.com/spreadsheets/…)');
-  ivsRun('cfg', {surveyBase:b, surveyParam:g('ivsC_param').trim()||'contact', sheetUrl:sh, senders:lines(g('ivsC_send')), vas:lines(g('ivsC_vas'))}, 'Settings saved'); }
-function ivsLogHTML(D){ return '<section class="ivs-card"><h3>Activity</h3><ul class="ivs-hist">'+(D.log||[]).slice(0, 200).map(function(l){ return '<li><span class="ivs-mut">'+ivsEsc(ivsFmtTs(l.ts))+'</span> <b>'+ivsEsc(l.user)+'</b> '+ivsEsc(l.text)+'</li>'; }).join('')+'</ul></section>'; }
+  ivsRun('cfg', {surveyBase:b, surveyParam:g('ivsC_param').trim()||'contact', sheetUrl:sh, senders:lines(g('ivsC_send')), vas:lines(g('ivsC_vas')), dailyTarget:Math.max(1, +g('ivsC_daily')||IVS_TARGET.daily), totalTarget:Math.max(1, +g('ivsC_total')||IVS_TARGET.invites)}, 'Settings saved'); }
+function ivsLogHTML(D){
+  var A = (D.acts||[]).filter(function(x){ return !IVS.actSeg || x.seg===IVS.actSeg; });
+  return '<section class="ivs-card"><h3>LinkedIn & engagement activity</h3><p class="ivs-mut">Every confirmed connection request and engagement activity, recorded once. Dan sees the same list in his portal.</p>'+
+    '<div class="ivs-filt"><select onchange="IVS.actSeg=this.value;ivsRender()" aria-label="Segment">'+ivsOpts(IVS_CAT_KEYS.map(function(k){ return [k, IVS_CATS[k].n]; }), IVS.actSeg, 'All segments')+'</select><button class="ivs-btn sm" onclick="ivsDownload(\'Investor Survey 2027 - activity.csv\', ivsActsCSV(ivsD()))">Download (.csv)</button></div>'+
+    '<div class="ivs-tw"><table class="ivs-t"><thead><tr><th>Date</th><th>Prospect</th><th>Segment</th><th>Activity</th><th>Connection status</th><th>Note / message sent</th><th>By</th></tr></thead><tbody>'+
+    (A.slice(0, 400).map(function(x){ var p = D.P.find(function(y){ return y.id===x.pid; }); var cur = p ? IVS_DESK_LABEL[ivsDeskStatus(p)] : x.status;
+      return '<tr><td class="ivs-mut">'+ivsEsc(ivsFmtTs(x.ts))+'</td><td><b>'+ivsEsc(x.name)+'</b> '+ivsLi(x.url)+'</td><td>'+ivsEsc((IVS_CATS[x.seg]||{}).n||'')+'</td><td>'+ivsEsc(IVS_ACT_LABEL[x.kind]||x.kind)+'</td><td>'+ivsEsc(cur)+'</td><td style="max-width:340px;font-size:12px">'+ivsEsc(x.note||'')+'</td><td class="ivs-mut">'+ivsEsc(x.by)+'</td></tr>'; }).join('') || '<tr><td colspan="7" class="ivs-mut">No confirmed activity yet.</td></tr>')+'</tbody></table></div></section>'+
+    (ivsIsTeam()?'<details class="ivs-card"><summary class="ivs-det"><b>Change log</b></summary><ul class="ivs-hist">'+(D.log||[]).slice(0, 200).map(function(l){ return '<li><span class="ivs-mut">'+ivsEsc(ivsFmtTs(l.ts))+'</span> <b>'+ivsEsc(l.user)+'</b> '+ivsEsc(l.text)+'</li>'; }).join('')+'</ul></details>':''); }
+function ivsActsCSV(D){ var q = function(v){ v = String(v==null?'':v); return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
+  return [['Date','Prospect','LinkedIn profile URL','Segment','Tier','Activity','Connection status at the time','Note / message sent','Sender','Recorded by']].concat((D.acts||[]).map(function(x){ return [new Date(x.ts).toISOString(), x.name, x.url, (IVS_CATS[x.seg]||{}).n||'', x.tier, IVS_ACT_LABEL[x.kind]||x.kind, x.status, x.note, x.sender, x.by]; })).map(function(r){ return r.map(q).join(','); }).join('\r\n'); }
 
 /* ---------- styles (scoped; follow the host portal's colours) ---------- */
 (function(){ if(document.getElementById('ivsCss')) return; var st = document.createElement('style'); st.id = 'ivsCss'; st.textContent = '\
@@ -2822,6 +2900,8 @@ function ivsLogHTML(D){ return '<section class="ivs-card"><h3>Activity</h3><ul c
 .ivs-msg{border:1px solid var(--iv-line);border-radius:10px;padding:9px 11px;margin-bottom:8px}.ivs-msgh{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:5px}.ivs-msgh .ivs-btn{margin-left:auto}.ivs-msg pre,.ivs-pre{white-space:pre-wrap;word-break:break-word;font:inherit;font-size:12.8px;margin:0}\
 .ivs-appr{background:var(--iv-soft);border-radius:10px;padding:10px 12px;margin:6px 0}\
 .ivs-det{margin-top:10px}.ivs-det summary{cursor:pointer;font-weight:700;padding:6px 0}.ivs-f{display:flex;flex-direction:column;gap:4px;margin-bottom:8px;min-width:0}.ivs-f label{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--iv-mut)}.ivs-f input,.ivs-f select,.ivs-f textarea{font:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--iv-line);border-radius:9px;background:var(--iv-card);color:var(--iv-ink);width:100%}\
+.ivs-trk{background:linear-gradient(180deg,var(--iv-card),var(--iv-soft))}.ivs-trkg{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:16px}.ivs-trkg>div{display:flex;flex-direction:column;gap:3px;align-items:flex-start}.ivs-trkg small{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--iv-mut)}.ivs-trkg b{font-size:24px;font-variant-numeric:tabular-nums}.ivs-trkg .ivs-bar{width:100%;height:9px}.ivs-trkg span{font-size:12.5px;color:var(--iv-mut)}\
+.ivs-segs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));gap:10px;margin-bottom:14px}.ivs-seg{font:inherit;text-align:left;background:var(--iv-card);border:1px solid var(--iv-line);border-radius:14px;padding:12px 14px;cursor:pointer;display:flex;flex-direction:column;gap:5px;color:var(--iv-ink)}.ivs-seg:hover{border-color:var(--iv-acc)}.ivs-segt{display:flex;flex-direction:column}.ivs-segt span{font-size:12px;color:var(--iv-mut)}.ivs-segn b{font-size:20px}.ivs-segn small{color:var(--iv-mut)}.ivs-seg .pills{display:flex;flex-wrap:wrap;gap:4px}\
 .ivs-ck{display:flex;gap:8px;align-items:center;margin:6px 0}.ivs-steps{padding-left:18px;margin:0 0 10px}.ivs-steps li{margin-bottom:4px}\
 .ivs-hist{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:5px;max-height:420px;overflow:auto;font-size:12.5px}.ivs-roles{padding-left:18px;margin:0}.ivs-roles li{margin-bottom:5px}\
 @media(max-width:820px){.ivs-row{flex-wrap:wrap}.ivs-who,.ivs-meta,.ivs-why,.ivs-st{flex:1 1 100%}.ivs-filt select{max-width:calc(50% - 4px);flex:1 1 calc(50% - 4px)}.ivs-ms{grid-template-columns:52px 1fr 62px}.ivs-bb{padding:12px}.ivs-kpi b{font-size:19px}}';
@@ -2882,6 +2962,62 @@ IVS.host = {
   if(openId && S.ivs.P.some(function(p){ return p.id===openId; })) ivsOpenP(openId); }; })();
 /* a sync that lands while a prospect is open keeps it open (render() is called by the desk after adopting a newer copy) */
 (function(){ var st = document.createElement('style'); st.textContent = '.ivs-me{display:flex;justify-content:flex-end;margin-bottom:6px}.ivs-me label{font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center}.ivs-me input{font:inherit;font-size:12.5px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;width:150px}'; document.head.appendChild(st); })();
+/* ===== the survey segments are real prospect lists, so they track and report exactly like the other lists =====
+   One desk list per segment ("Investor Survey 2027 · Private Equity", …): same statuses (Not connected · Pending · Connected ·
+   Responded · Follow-up), same dashboard card, same daily digest in Dan's portal, same lead list in the Cross Core Ops
+   Suite (which already reads every active desk list). Each survey prospect is linked to exactly one desk prospect, so a
+   send is never counted twice; someone already on another list is linked, not copied. */
+var IVS_SEG_ORDER = ['PE','VC','FO','ST','OA','OT'];
+function ivsSegListId(cat){ return 'ivs27-'+cat; }
+function ivsDeskSync(){
+  if(!S || !S.ivs || !Array.isArray(S.prospects) || !Array.isArray(S.lists)) return false;
+  var D = S.ivs, ch = false, now = Date.now(), today = ivsDay(now);
+  IVS_SEG_ORDER.forEach(function(k, i){ var id = ivsSegListId(k); var l = S.lists.find(function(x){ return x.id===id; });
+    var name = IVS_CATS[k].n+' · Survey 2027', tgt = Math.max(1, Math.round((IVS_CATS[k].invite||30)/30));
+    if(l && l.ivs && l.name!==name){ l.name = name; ch = true; }
+    if(!l){ S.lists.push({id:id, name:name, icp:'Investor Survey 2027 · '+IVS_CATS[k].n, dailyTarget:tgt, order:10+i, createdAt:now, archived:false, ivs:true}); ch = true; } });
+  var byId = {}, byUrl = {}; S.prospects.forEach(function(dp){ byId[dp.id] = dp; var c = ivsCanon(dp.url); if(c && !byUrl[c]) byUrl[c] = dp; });
+  D.P.forEach(function(r){
+    if(r.removed) return;
+    var dp = r.dsk && byId[r.dsk.id]; if(!dp){ dp = byUrl[ivsCanon(r.url)] || null; }
+    if(!dp){ var t = (r.h && r.h[0] && r.h[0].ts) || now;
+      dp = {id:'ivs-'+r.id, listId:ivsSegListId(r.cat), name:r.name, position:r.title||'', company:r.company||'', icp:'Investor Survey 2027 · '+((IVS_CATS[r.cat]||{}).n||''), url:r.url, status:'NOT_CONNECTED',
+        addedAt:t, updatedAt:t, archived:false, note:'', noteCustom:true, ivsId:r.id, history:[{ts:t, user:'Investor Survey 2027', from:null, to:'NOT_CONNECTED'}]};
+      S.prospects.push(dp); byId[dp.id] = dp; byUrl[ivsCanon(r.url)] = dp; ch = true; }
+    else if(!dp.ivsId){ dp.ivsId = r.id; ch = true;
+      if(!r.prior && dp.listId!==ivsSegListId(r.cat)){ var src = S.lists.find(function(l){ return l.id===dp.listId; }); r.prior = 'Already on '+(src?src.name:'another list')+' ('+(STATUSES[dp.status]||dp.status)+'): linked, not duplicated'; } }
+    if(!r.dsk || r.dsk.id!==dp.id){ r.dsk = {id:dp.id, st:dp.status}; r.fu = r.fu||{}; r.fu.dsk = now; ch = true; }
+    var owned = String(dp.id).indexOf('ivs-')===0;   /* someone already on an older list keeps that list's status and history untouched */
+    if(!owned){ if(r.dsk.st!==dp.status){ r.dsk.st = dp.status; ch = true; } return; }
+    /* 1) a status set from the lead list (this desk or the Ops Suite) becomes the matching playbook step, with the playbook's checks */
+    if(dp.status !== r.dsk.st){
+      var who = ((dp.history||[]).slice(-1)[0]||{}).user || 'Team', steps = {REQUEST_SENT:['invite'], CONNECTED:['invite','connected'], RESPONDED:['invite','responded']}[dp.status] || [];
+      var err = '';
+      steps.forEach(function(w){ if(err) return; if(w==='invite' && (r.touches||0)>0) return; if(w==='connected' && r.accepted) return; if(w==='responded' && r.responded) return;
+        try{ ivsApply(S, 'mark', {id:r.id, what:w, channel:'LinkedIn', confirmed:true, note:dp.note||''}, {by:who, role:'va', ts:now}); }catch(e){ err = e.message; } });
+      r.syncIssue = err ? 'Status "'+(STATUSES[dp.status]||dp.status)+'" set in the lead list was not applied: '+err : '';
+      r.dsk.st = dp.status; r.fu = r.fu||{}; r.fu.dsk = now; ch = true;
+    }
+    /* 2) the playbook decides the list status, so the lists, digest and reports always match */
+    var want = ivsDeskStatus(r, today);
+    if(dp.status !== want && !(IVS_STOP.includes(r.status) && r.status!=='Survey Completed')){
+      var from = dp.status; dp.status = want; dp.updatedAt = now; (dp.history = dp.history||[]).push({ts:now, user:r.ub||'Investor Survey 2027', from:from, to:want});
+      S.activity.unshift({id:uid(), ts:now, user:r.ub||'Investor Survey 2027', action:'status', detail:dp.name+': '+(STATUSES[from]||from)+' → '+(STATUSES[want]||want)+' (Investor Survey 2027)'}); if(S.activity.length>800) S.activity.length = 800;
+      r.dsk.st = want; r.fu = r.fu||{}; r.fu.dsk = now; ch = true; }
+    /* keep the list record current: name, title, company, profile, segment and the connection note */
+    var note = ivsMsg('connect', r, D.cfg||{}).text, upd = {name:r.name, position:r.title||'', company:r.company||'', url:r.url, note:r.noteSent||note};
+    upd.listId = ivsSegListId(r.cat);
+    Object.keys(upd).forEach(function(k){ if(dp[k]!==upd[k]){ dp[k] = upd[k]; ch = true; } });
+  });
+  return ch; }
+/* run it after every playbook change and after every sync from the other portal */
+(function(){ var _ap = IVS.host.apply; IVS.host.apply = function(act, args){
+  if(!S) throw new Error('Still loading: try again in a moment.');
+  var r = ivsApply(S, act, args, {by:ivsDeskName(), role:this.role(), ts:Date.now()});
+  if(r !== false){ try{ ivsDeskSync(); }catch(e){ console.warn('ivs desk sync', e); } IVS_DESK_LAST = JSON.parse(JSON.stringify(S.ivs)); return Promise.resolve(persist()).then(function(){ try{ render(); }catch(e){} return r; }); }
+  return r; }; })();
+(function(){ var _r2 = render; render = function(){ var ch = false; try{ if(S && S.ivs && session) ch = ivsDeskSync(); }catch(e){ console.warn('ivs desk sync', e); }
+  if(ch){ IVS_DESK_LAST = JSON.parse(JSON.stringify(S.ivs)); persist(); } return _r2.apply(this, arguments); }; })();
 
 </script>
 </body>
