@@ -3016,8 +3016,52 @@ function ivsDeskSync(){
   var r = ivsApply(S, act, args, {by:ivsDeskName(), role:this.role(), ts:Date.now()});
   if(r !== false){ try{ ivsDeskSync(); }catch(e){ console.warn('ivs desk sync', e); } IVS_DESK_LAST = JSON.parse(JSON.stringify(S.ivs)); return Promise.resolve(persist()).then(function(){ try{ render(); }catch(e){} return r; }); }
   return r; }; })();
-(function(){ var _r2 = render; render = function(){ var ch = false; try{ if(S && S.ivs && session) ch = ivsDeskSync(); }catch(e){ console.warn('ivs desk sync', e); }
+(function(){ var _r2 = render; render = function(){ var ch = false; try{ if(S && !S.ivs && session){ ivsApply(S, 'seed', {seed:IVS_SEED, sheetUrl:IVS_SHEET_URL}, {by:'System', role:'va', ts:Date.now()}); ch = true; } if(S && S.ivs && session) ch = ivsDeskSync() || ch; }catch(e){ console.warn('ivs desk sync', e); }
   if(ch){ IVS_DESK_LAST = JSON.parse(JSON.stringify(S.ivs)); persist(); } return _r2.apply(this, arguments); }; })();
+/* ===== status dropdown in a survey segment list: record it through the playbook, never silently undo it =====
+   Picking "Request Sent / Pending" (or Connected / Responded) in a survey list opens a short confirmation that does what the
+   playbook needs in one step (live profile checked, sender, note sent, "it was sent"). Anything only Dan / the sender can
+   give (Tier 1 approval) is explained instead of the status quietly snapping back. */
+document.addEventListener('change', function(e){
+  var sel = e.target && e.target.closest && e.target.closest('[data-status-for]'); if(!sel || !S) return;
+  var dp = S.prospects.find(function(x){ return x.id===sel.dataset.statusFor; }); if(!dp || !dp.ivsId || String(dp.id).indexOf('ivs-')!==0 || !S.ivs) return;
+  e.stopImmediatePropagation(); e.preventDefault();
+  var r = S.ivs.P.find(function(x){ return x.id===dp.ivsId; }); var want = sel.value; sel.value = dp.status;
+  if(!r) return;
+  if(want===dp.status) return;
+  if(want==='NOT_CONNECTED' || want==='FOLLOW_UP'){ toast(want==='FOLLOW_UP' ? 'Follow-up is shown automatically 7 days after the request. Record the follow-up itself in Engagement playbook.' : 'A sent request can’t be undone here: open the prospect in Engagement playbook.'); return; }
+  ivsListStatusModal(r, want);
+}, true);
+function ivsListStatusModal(r, want){
+  var D = S.ivs, steps = want==='REQUEST_SENT' ? ['invite'] : want==='CONNECTED' ? ['invite','connected'] : ['invite','responded'];
+  if((r.touches||0) > 0) steps = steps.filter(function(w){ return w!=='invite'; });
+  if(IVS_STOP.includes(r.status)) return toast(ivsEsc(r.name)+' is '+ivsEsc(r.status.toLowerCase())+': no further touches.');
+  if(steps.indexOf('invite')>=0){
+    if(ivsNoSend()) return toast('Thanksgiving week (November 23 to 27): no sends.');
+    if(r.tier==='Tier 1' && r.approval!=='Approved') return ivsModal('Tier 1: needs the sender’s approval first', '<p><b>'+ivsEsc(r.name)+'</b> ('+ivsEsc(r.company)+') is a Tier 1 contact. The playbook says Tier 1 invites go from Dan or the senior leader who knows them, and only after that person approves the note.</p><p>'+(r.approval==='Awaiting Sender Approval'?'It is waiting for <b>'+ivsEsc(r.sender)+'</b>’s approval.':'Open it in Engagement playbook: verify the profile, set the sender and send it for approval.')+'</p><div class="ivs-acts"><button class="ivs-btn pri" onclick="ivsClose();view=\'ivs\';IVS.tab=\'dir\';render();ivsOpenP(\''+r.id+'\')">Open in Engagement playbook</button><button class="ivs-btn" onclick="ivsClose()">Close</button></div>');
+  }
+  var me = ivsDeskName().replace(/ \(CrossCore VA\)$/,''), note = r.noteSent || ivsMsg('connect', r, D.cfg||{}).text;
+  var needVer = steps.indexOf('invite')>=0 && r.verify!=='Verified', needSender = steps.indexOf('invite')>=0 && !r.sender;
+  ivsModal((want==='REQUEST_SENT'?'Connection request sent':want==='CONNECTED'?'Connection accepted':'Responded')+': '+r.name,
+    (needVer?'<label class="ivs-ck"><input type="checkbox" id="ivsLsVer"> I opened the live LinkedIn profile '+ivsLi(r.url)+' and it is '+ivsEsc(r.name)+', '+ivsEsc(r.title)+' at '+ivsEsc(r.company)+'.</label>':'')+
+    (needSender?'<div class="ivs-f"><label>Sent from (whose LinkedIn account)</label><input id="ivsLsSender" value="'+ivsEsc(me==='CrossCore VA'?'':me)+'" placeholder="Your name"></div>':'')+
+    (steps.indexOf('invite')>=0?'<div class="ivs-f"><label>Note sent with the request</label><textarea id="ivsLsNote" rows="4">'+ivsEsc(note)+'</textarea></div><label class="ivs-ck"><input type="checkbox" id="ivsLsSent"> I confirm this connection request with this note was sent on LinkedIn.</label>':'<p>Recorded for '+ivsEsc(r.name)+' and shown in Dan’s report.</p>')+
+    '<div class="ivs-acts"><button class="ivs-btn pri" onclick="ivsListStatusSave(\''+r.id+'\',\''+want+'\')">Save</button><button class="ivs-btn" onclick="ivsClose()">Cancel</button></div><p class="ivs-mut">Counted once in the targets, the daily report and Dan’s portal. Log the touch in HubSpot today.</p>');
+}
+function ivsListStatusSave(id, want){
+  var r = S.ivs.P.find(function(x){ return x.id===id; }); if(!r) return; var g = function(i){ return document.getElementById(i); };
+  var steps = want==='REQUEST_SENT' ? ['invite'] : want==='CONNECTED' ? ['invite','connected'] : ['invite','responded']; if((r.touches||0) > 0) steps = steps.filter(function(w){ return w!=='invite'; });
+  var by = ivsDeskName(), ts = Date.now(), role = IVS.host.role();
+  try{
+    var copy = {ivs:JSON.parse(JSON.stringify(S.ivs))};   /* all or nothing */
+    if(g('ivsLsVer')){ if(!g('ivsLsVer').checked) throw new Error('Tick that you checked the live LinkedIn profile.'); ivsApply(copy, 'verify', {id:id, verdict:'Verified'}, {by:by, role:role, ts:ts}); }
+    if(g('ivsLsSender')){ var snd = g('ivsLsSender').value.trim(); if(!snd) throw new Error('Enter whose LinkedIn account it was sent from.'); ivsApply(copy, 'set', {id:id, patch:{sender:snd}}, {by:by, role:role, ts:ts}); }
+    steps.forEach(function(w, i){ if(w==='invite' && !(g('ivsLsSent')||{}).checked) throw new Error('Tick the confirmation once the request was actually sent.');
+      ivsApply(copy, 'mark', {id:id, what:w, channel:'LinkedIn', confirmed:true, note:w==='invite' ? (g('ivsLsNote')||{}).value||'' : ''}, {by:by, role:role, ts:ts+i}); });
+    S.ivs = copy.ivs; ivsDeskSync(); IVS_DESK_LAST = JSON.parse(JSON.stringify(S.ivs)); persist(); ivsClose(); render();
+    toast('<b>'+ivsEsc(r.name)+'</b> → '+(STATUSES[want]||want)+' · logged and counted');
+  }catch(e){ toast(ivsEsc(e.message)); }
+}
 
 </script>
 </body>
