@@ -2250,6 +2250,7 @@ var IVS_ACT_COUNTS = ['request','invite','follow','final','thanks'];   /* engage
 function ivsDeskStatus(p, today){
   if(p.completion==='Completed' || p.responded || p.status==='Responded') return 'RESPONDED';
   if(p.accepted) return 'CONNECTED';
+  if(p.followReq) return 'FOLLOW_UP';
   var li = p.channel!=='Email' && (p.touches||0) > 0;
   if(li && ivsFollowDue(p, today)) return 'FOLLOW_UP';
   return li ? 'REQUEST_SENT' : 'NOT_CONNECTED'; }
@@ -2318,6 +2319,7 @@ function ivsFlags(p, P, cfg){
   if(/technology platform/i.test(p.type||'')) out.push({k:'look', t:'Technology company: invite only with confirmed deal activity (acquisition or outside capital).'});
   var firm = (p.company||'').trim().toLowerCase(), n = P.filter(function(o){ return (o.company||'').trim().toLowerCase()===firm && o.status!=='Unqualified' && !o.removed && o.verify!=='Rejected' && o.verify!=='Duplicate'; }).length;
   if(n > 2 && !(cfg.capOk||{})[firm]) out.push({k:'bad', t:'More than two invitees at '+p.company+': Kylee must approve an exception'});
+  (p.directFlags||[]).forEach(function(f){ out.push({k:'look', t:'Recorded from the list: '+f+'.'}); });
   if(p.verify==='Needs Verification') out.push({k:'look', t:'Open the live LinkedIn profile and confirm name, current title and company before inviting.'});
   if(p.tier==='Tier 1' && !p.sender) out.push({k:'look', t:'Tier 1: assign Dan or the senior leader who knows them, then get their approval.'});
   return out;
@@ -2396,7 +2398,7 @@ function ivsNextSched(today){ today = today || ivsDay(); return IVS_SCHED.filter
 /* ---------- writing: every change goes through here (both portals) ---------- */
 var IVS_META = ['h','u','ub','fu'];
 function ivsSnap(p){ var o = {}; Object.keys(p).forEach(function(k){ if(IVS_META.indexOf(k)<0) o[k] = JSON.parse(JSON.stringify(p[k]===undefined?null:p[k])); }); return o; }
-var IVS_EDIT = {va:['title','company','industry','location','url','cat','type','tier','role','reason','evQual','evUrl','sender','personal','noteCustom','msgCustom','link','wave','channel','assignee','notes','first','name'],
+var IVS_EDIT = {va:['followReq','title','company','industry','location','url','cat','type','tier','role','reason','evQual','evUrl','sender','personal','noteCustom','msgCustom','link','wave','channel','assignee','notes','first','name'],
   client:['personal','noteCustom','msgCustom','notes','sender'], admin:null};
 function ivsTouch(p, by, ts, act){ p.u = ts; p.ub = by; (p.h = p.h || []).push({ts:ts, user:by, act:act}); if(p.h.length > 60) p.h.splice(0, p.h.length-60); }
 function ivsLog(D, by, ts, text){ (D.log = D.log || []).unshift({id:'L'+ts.toString(36)+Math.random().toString(36).slice(2,6), ts:ts, user:by, text:text}); if(D.log.length > 1500) D.log.length = 1500; }
@@ -2462,7 +2464,12 @@ function ivsApply(d, act, a, ctx){
     if(act==='mark'){
       var w = a.what, sendLike = ['invite','follow','final'].includes(w);
       if(IVS_STOP.includes(p.status) && !['thanks','hub','callRouted','reopen'].includes(w)) throw new Error(p.name+' is '+p.status.toLowerCase()+': no further touches.');
-      if(sendLike){
+      if(sendLike && a.direct){   /* set straight from a prospect list: the person picking the status is saying it was sent */
+        if(ivsNoSend(today)) throw new Error('Thanksgiving week (November 23 to 27): no sends.'); if(ivsClosed(today)) throw new Error('The survey closed on December 18.');
+        var fl = []; if(p.verify!=='Verified') fl.push('live profile not verified in the playbook'); if(p.tier==='Tier 1' && p.approval!=='Approved') fl.push('Tier 1 sent without recorded sender approval');
+        if(!p.sender) p.sender = String(by).replace(/ \((CrossCore VA|via Cross Core)\)$/,'');
+        p.directFlags = (p.directFlags||[]).concat(fl).filter(function(v, i, A){ return A.indexOf(v)===i; });
+      } else if(sendLike){
         if(ivsNoSend(today)) throw new Error('Thanksgiving week (November 23 to 27): no sends.'); if(ivsClosed(today)) throw new Error('The survey closed on December 18.');
         if(p.verify!=='Verified') throw new Error('Verify '+p.name+'’s live LinkedIn profile before contacting them.');
         if(!p.sender) throw new Error('Assign the sender first: every invite goes from a real person.');
@@ -2480,6 +2487,15 @@ function ivsApply(d, act, a, ctx){
       else if(w==='unqualified'){ if(String(a.note||'').trim().length<3) throw new Error('Say why '+p.name+' doesn’t qualify.'); p.status = 'Unqualified'; p.unqNote = a.note.trim(); }
       else if(w==='thanks'){ if(p.completion!=='Completed') throw new Error('Send the thank-you after the survey is completed.'); p.dThanks = today; p.hubPending = true; }
       else if(w==='hub'){ p.hubPending = false; p.hub = today; }
+      else if(w==='undo'){   /* a status taken back in the list: the last step is removed, and so is its count */
+        var to = a.to || 'NOT_CONNECTED', drop = [];
+        if(to==='NOT_CONNECTED'){ if((p.touches||0) > 1) throw new Error('Follow-ups were already recorded: change this in Engagement playbook.'); drop = ['request','invite','connected','responded'];
+          p.touches = 0; p.dInvite = null; p.noteSent = ''; p.sentAt = null; p.accepted = null; p.responded = null; p.hubPending = false; p.directFlags = []; p.status = p.approval==='Approved' ? 'Approved' : 'Not Contacted'; }
+        else if(to==='REQUEST_SENT'){ drop = ['connected','responded']; p.accepted = null; p.responded = null; if(['Connected','Responded'].includes(p.status)) p.status = p.touches===2 ? 'Follow-Up Sent' : 'Invitation Sent'; }
+        else if(to==='CONNECTED'){ drop = ['responded']; p.responded = null; if(p.status==='Responded') p.status = 'Connected'; }
+        p.followReq = false; D.actsGone = D.actsGone || [];
+        D.acts = (D.acts||[]).filter(function(x){ var gone = x.pid===p.id && drop.indexOf(x.kind)>=0; if(gone) D.actsGone.push(x.id); return !gone; });
+        ivsTouch(p, by, ts, 'Status taken back to '+(IVS_DESK_LABEL[to]||to)+' in the list'); changed++; return; }
       else if(w==='prepare'){ if(IVS_STOP.includes(p.status)) throw new Error('No further touches.'); p.prepared = {ts:ts, by:by, kind:a.kind||'request'}; ivsTouch(p, by, ts, 'Opened LinkedIn and copied the '+(a.kind==='request'||!a.kind?'connection note':'message')+' (waiting for confirmation that it was sent)'); changed++; return; }
       else if(w==='callRouted'){ p.callRouted = {by:by, at:ts}; }
       else if(w==='reopen'){ if(role!=='admin') throw new Error('Only an administrator reopens a closed contact.'); if(String(a.note||'').trim().length<3) throw new Error('Say why.'); p.status = p.touches ? 'Invitation Sent' : 'Not Contacted'; p.completion = 'Not Completed'; }
@@ -2498,9 +2514,10 @@ function ivsApply(d, act, a, ctx){
 /* one entry per activity and prospect: the id makes it impossible to count the same send twice */
 function ivsLedger(D, p, w, by, ts, today){
   var kind = w==='invite' ? (p.channel==='Email' ? 'invite' : 'request') : w; if(!IVS_ACT_LABEL[kind]) return;
-  var id = p.id+':'+kind; D.acts = D.acts || []; if(D.acts.some(function(x){ return x.id===id; })) return;
+  var base = p.id+':'+kind; D.acts = D.acts || []; if(D.acts.some(function(x){ return (x.base||x.id)===base; })) return;
+  var id = base+'#'+(D.actsGone||[]).filter(function(g){ return g.indexOf(base+'#')===0; }).length;
   var note = kind==='request'||kind==='invite' ? p.noteSent : kind==='follow' ? p.followNote : kind==='final' ? p.finalNote : '';
-  D.acts.unshift({id:id, pid:p.id, kind:kind, ts:ts, day:today, by:by, name:p.name, url:p.url, seg:p.cat, tier:p.tier, sender:p.sender||'', note:note||'', status:IVS_DESK_LABEL[ivsDeskStatus(p, today)], counts:IVS_ACT_COUNTS.indexOf(kind)>=0});
+  D.acts.unshift({id:id, base:base, pid:p.id, kind:kind, ts:ts, day:today, by:by, name:p.name, url:p.url, seg:p.cat, tier:p.tier, sender:p.sender||'', note:note||'', status:IVS_DESK_LABEL[ivsDeskStatus(p, today)], counts:IVS_ACT_COUNTS.indexOf(kind)>=0});
   if(D.acts.length > 5000) D.acts.length = 5000; }
 function ivsTargets(D, today){
   today = today || ivsDay(); var A = (D.acts||[]), cfg = D.cfg||{}, daily = +cfg.dailyTarget || IVS_TARGET.daily, total = +cfg.totalTarget || IVS_TARGET.invites;
@@ -2529,7 +2546,9 @@ function ivsMerge(local, remote){
   if(remote.cfg && (remote.cfg.u||0) > ((local.cfg||{}).u||0)) local.cfg = JSON.parse(JSON.stringify(remote.cfg));
   var seen = {}; (local.log||[]).forEach(function(l){ seen[l.id] = 1; }); (remote.log||[]).forEach(function(l){ if(!seen[l.id]) (local.log = local.log||[]).push(l); });
   local.log.sort(function(a,b){ return b.ts - a.ts; }); if(local.log.length > 1500) local.log.length = 1500;
+  var gone = {}; (local.actsGone||[]).concat(remote.actsGone||[]).forEach(function(g){ gone[g] = 1; }); local.actsGone = Object.keys(gone);
   var sa = {}; (local.acts||[]).forEach(function(x){ sa[x.id] = 1; }); (remote.acts||[]).forEach(function(x){ if(!sa[x.id]){ (local.acts = local.acts||[]).push(x); sa[x.id] = 1; } });
+  if(local.acts) local.acts = local.acts.filter(function(x){ return !gone[x.id]; });
   if(local.acts) local.acts.sort(function(a,b){ return b.ts - a.ts; });
   return local;
 }
@@ -2994,7 +3013,7 @@ function ivsDeskSync(){
       var who = ((dp.history||[]).slice(-1)[0]||{}).user || 'Team', steps = {REQUEST_SENT:['invite'], CONNECTED:['invite','connected'], RESPONDED:['invite','responded']}[dp.status] || [];
       var err = '';
       steps.forEach(function(w){ if(err) return; if(w==='invite' && (r.touches||0)>0) return; if(w==='connected' && r.accepted) return; if(w==='responded' && r.responded) return;
-        try{ ivsApply(S, 'mark', {id:r.id, what:w, channel:'LinkedIn', confirmed:true, note:dp.note||''}, {by:who, role:'va', ts:now}); }catch(e){ err = e.message; } });
+        try{ ivsApply(S, 'mark', {id:r.id, what:w, channel:'LinkedIn', confirmed:true, direct:true, note:dp.note||''}, {by:who, role:'va', ts:now}); }catch(e){ err = e.message; } });
       r.syncIssue = err ? 'Status "'+(STATUSES[dp.status]||dp.status)+'" set in the lead list was not applied: '+err : '';
       r.dsk.st = dp.status; r.fu = r.fu||{}; r.fu.dsk = now; ch = true;
     }
@@ -3018,50 +3037,29 @@ function ivsDeskSync(){
   return r; }; })();
 (function(){ var _r2 = render; render = function(){ var ch = false; try{ if(S && !S.ivs && session){ ivsApply(S, 'seed', {seed:IVS_SEED, sheetUrl:IVS_SHEET_URL}, {by:'System', role:'va', ts:Date.now()}); ch = true; } if(S && S.ivs && session) ch = ivsDeskSync() || ch; }catch(e){ console.warn('ivs desk sync', e); }
   if(ch){ IVS_DESK_LAST = JSON.parse(JSON.stringify(S.ivs)); persist(); } return _r2.apply(this, arguments); }; })();
-/* ===== status dropdown in a survey segment list: record it through the playbook, never silently undo it =====
-   Picking "Request Sent / Pending" (or Connected / Responded) in a survey list opens a short confirmation that does what the
-   playbook needs in one step (live profile checked, sender, note sent, "it was sent"). Anything only Dan / the sender can
-   give (Tier 1 approval) is explained instead of the status quietly snapping back. */
+/* ===== status dropdown in a survey segment list: works directly, like every other list =====
+   Picking a status updates it at once. Behind the scenes it is recorded as the matching playbook step (logged once, in
+   Dan's report and the targets). Anything the playbook would normally check first (live profile verified, Tier 1
+   approval) is noted on the prospect instead of blocking the update. */
+function ivsListSet(dp, want){
+  var r = S.ivs.P.find(function(x){ return x.id===dp.ivsId; }); if(!r) return;
+  var by = ivsDeskName(), ts = Date.now(), role = 'va', cur = dp.status, rank = {NOT_CONNECTED:0, REQUEST_SENT:1, FOLLOW_UP:1, CONNECTED:2, RESPONDED:3};
+  var copy = {ivs:JSON.parse(JSON.stringify(S.ivs))}, ctx = function(i){ return {by:by, role:role, ts:ts+i}; };
+  if(want==='FOLLOW_UP'){ if(!(r.touches>0)) ivsApply(copy, 'mark', {id:r.id, what:'invite', channel:'LinkedIn', confirmed:true, direct:true, note:dp.note||''}, ctx(0)); ivsApply(copy, 'set', {id:r.id, patch:{followReq:true}}, ctx(1)); }
+  else if(rank[want] < rank[cur] || (cur==='FOLLOW_UP' && want==='REQUEST_SENT')){ if(cur==='FOLLOW_UP' && want==='REQUEST_SENT') ivsApply(copy, 'set', {id:r.id, patch:{followReq:false}}, ctx(0)); else ivsApply(copy, 'mark', {id:r.id, what:'undo', to:want}, ctx(0)); }
+  else { var steps = want==='REQUEST_SENT' ? ['invite'] : want==='CONNECTED' ? ['invite','connected'] : ['invite','responded'], i = 0;
+    if(r.followReq) ivsApply(copy, 'set', {id:r.id, patch:{followReq:false}}, ctx(i++));
+    steps.forEach(function(w){ if(w==='invite' && (r.touches||0)>0) return; if(w==='connected' && r.accepted) return; if(w==='responded' && r.responded) return;
+      ivsApply(copy, 'mark', {id:r.id, what:w, channel:'LinkedIn', confirmed:true, direct:true, note:w==='invite'?(dp.note||''):''}, ctx(i++)); }); }
+  S.ivs = copy.ivs; ivsDeskSync(); IVS_DESK_LAST = JSON.parse(JSON.stringify(S.ivs)); persist(); render();
+  toast('<b>'+ivsEsc(dp.name)+'</b> → '+(STATUSES[want]||want));
+}
 document.addEventListener('change', function(e){
-  var sel = e.target && e.target.closest && e.target.closest('[data-status-for]'); if(!sel || !S) return;
-  var dp = S.prospects.find(function(x){ return x.id===sel.dataset.statusFor; }); if(!dp || !dp.ivsId || String(dp.id).indexOf('ivs-')!==0 || !S.ivs) return;
-  e.stopImmediatePropagation(); e.preventDefault();
-  var r = S.ivs.P.find(function(x){ return x.id===dp.ivsId; }); var want = sel.value; sel.value = dp.status;
-  if(!r) return;
-  if(want===dp.status) return;
-  if(want==='NOT_CONNECTED' || want==='FOLLOW_UP'){ toast(want==='FOLLOW_UP' ? 'Follow-up is shown automatically 7 days after the request. Record the follow-up itself in Engagement playbook.' : 'A sent request can’t be undone here: open the prospect in Engagement playbook.'); return; }
-  ivsListStatusModal(r, want);
+  var sel = e.target && e.target.closest && e.target.closest('[data-status-for]'); if(!sel || !S || !S.ivs) return;
+  var dp = S.prospects.find(function(x){ return x.id===sel.dataset.statusFor; }); if(!dp || !dp.ivsId || String(dp.id).indexOf('ivs-')!==0) return;
+  e.stopImmediatePropagation(); e.preventDefault(); var want = sel.value; if(want===dp.status) return;
+  try{ ivsListSet(dp, want); }catch(err){ sel.value = dp.status; toast(ivsEsc(err.message)); }
 }, true);
-function ivsListStatusModal(r, want){
-  var D = S.ivs, steps = want==='REQUEST_SENT' ? ['invite'] : want==='CONNECTED' ? ['invite','connected'] : ['invite','responded'];
-  if((r.touches||0) > 0) steps = steps.filter(function(w){ return w!=='invite'; });
-  if(IVS_STOP.includes(r.status)) return toast(ivsEsc(r.name)+' is '+ivsEsc(r.status.toLowerCase())+': no further touches.');
-  if(steps.indexOf('invite')>=0){
-    if(ivsNoSend()) return toast('Thanksgiving week (November 23 to 27): no sends.');
-    if(r.tier==='Tier 1' && r.approval!=='Approved') return ivsModal('Tier 1: needs the sender’s approval first', '<p><b>'+ivsEsc(r.name)+'</b> ('+ivsEsc(r.company)+') is a Tier 1 contact. The playbook says Tier 1 invites go from Dan or the senior leader who knows them, and only after that person approves the note.</p><p>'+(r.approval==='Awaiting Sender Approval'?'It is waiting for <b>'+ivsEsc(r.sender)+'</b>’s approval.':'Open it in Engagement playbook: verify the profile, set the sender and send it for approval.')+'</p><div class="ivs-acts"><button class="ivs-btn pri" onclick="ivsClose();view=\'ivs\';IVS.tab=\'dir\';render();ivsOpenP(\''+r.id+'\')">Open in Engagement playbook</button><button class="ivs-btn" onclick="ivsClose()">Close</button></div>');
-  }
-  var me = ivsDeskName().replace(/ \(CrossCore VA\)$/,''), note = r.noteSent || ivsMsg('connect', r, D.cfg||{}).text;
-  var needVer = steps.indexOf('invite')>=0 && r.verify!=='Verified', needSender = steps.indexOf('invite')>=0 && !r.sender;
-  ivsModal((want==='REQUEST_SENT'?'Connection request sent':want==='CONNECTED'?'Connection accepted':'Responded')+': '+r.name,
-    (needVer?'<label class="ivs-ck"><input type="checkbox" id="ivsLsVer"> I opened the live LinkedIn profile '+ivsLi(r.url)+' and it is '+ivsEsc(r.name)+', '+ivsEsc(r.title)+' at '+ivsEsc(r.company)+'.</label>':'')+
-    (needSender?'<div class="ivs-f"><label>Sent from (whose LinkedIn account)</label><input id="ivsLsSender" value="'+ivsEsc(me==='CrossCore VA'?'':me)+'" placeholder="Your name"></div>':'')+
-    (steps.indexOf('invite')>=0?'<div class="ivs-f"><label>Note sent with the request</label><textarea id="ivsLsNote" rows="4">'+ivsEsc(note)+'</textarea></div><label class="ivs-ck"><input type="checkbox" id="ivsLsSent"> I confirm this connection request with this note was sent on LinkedIn.</label>':'<p>Recorded for '+ivsEsc(r.name)+' and shown in Dan’s report.</p>')+
-    '<div class="ivs-acts"><button class="ivs-btn pri" onclick="ivsListStatusSave(\''+r.id+'\',\''+want+'\')">Save</button><button class="ivs-btn" onclick="ivsClose()">Cancel</button></div><p class="ivs-mut">Counted once in the targets, the daily report and Dan’s portal. Log the touch in HubSpot today.</p>');
-}
-function ivsListStatusSave(id, want){
-  var r = S.ivs.P.find(function(x){ return x.id===id; }); if(!r) return; var g = function(i){ return document.getElementById(i); };
-  var steps = want==='REQUEST_SENT' ? ['invite'] : want==='CONNECTED' ? ['invite','connected'] : ['invite','responded']; if((r.touches||0) > 0) steps = steps.filter(function(w){ return w!=='invite'; });
-  var by = ivsDeskName(), ts = Date.now(), role = IVS.host.role();
-  try{
-    var copy = {ivs:JSON.parse(JSON.stringify(S.ivs))};   /* all or nothing */
-    if(g('ivsLsVer')){ if(!g('ivsLsVer').checked) throw new Error('Tick that you checked the live LinkedIn profile.'); ivsApply(copy, 'verify', {id:id, verdict:'Verified'}, {by:by, role:role, ts:ts}); }
-    if(g('ivsLsSender')){ var snd = g('ivsLsSender').value.trim(); if(!snd) throw new Error('Enter whose LinkedIn account it was sent from.'); ivsApply(copy, 'set', {id:id, patch:{sender:snd}}, {by:by, role:role, ts:ts}); }
-    steps.forEach(function(w, i){ if(w==='invite' && !(g('ivsLsSent')||{}).checked) throw new Error('Tick the confirmation once the request was actually sent.');
-      ivsApply(copy, 'mark', {id:id, what:w, channel:'LinkedIn', confirmed:true, note:w==='invite' ? (g('ivsLsNote')||{}).value||'' : ''}, {by:by, role:role, ts:ts+i}); });
-    S.ivs = copy.ivs; ivsDeskSync(); IVS_DESK_LAST = JSON.parse(JSON.stringify(S.ivs)); persist(); ivsClose(); render();
-    toast('<b>'+ivsEsc(r.name)+'</b> → '+(STATUSES[want]||want)+' · logged and counted');
-  }catch(e){ toast(ivsEsc(e.message)); }
-}
 
 </script>
 </body>
